@@ -1,0 +1,24 @@
+{
+	"name": "scheduled_trigger",
+	"properties": {
+		"annotations": [],
+		"runtimeState": "Stopped",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "scheduled_mv_stg_to_raw",
+					"type": "PipelineReference"
+				}
+			}
+		],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Hour",
+				"interval": 1,
+				"startTime": "2026-05-05T17:34:00",
+				"timeZone": "India Standard Time"
+			}
+		}
+	}
+}

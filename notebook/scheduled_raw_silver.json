@@ -1,0 +1,139 @@
+{
+	"name": "scheduled_raw_silver",
+	"properties": {
+		"nbformat": 4,
+		"nbformat_minor": 2,
+		"bigDataPool": {
+			"referenceName": "sparkpool",
+			"type": "BigDataPoolReference"
+		},
+		"sessionProperties": {
+			"driverMemory": "28g",
+			"driverCores": 4,
+			"executorMemory": "28g",
+			"executorCores": 4,
+			"numExecutors": 2,
+			"runAsWorkspaceSystemIdentity": false,
+			"conf": {
+				"spark.dynamicAllocation.enabled": "false",
+				"spark.dynamicAllocation.minExecutors": "2",
+				"spark.dynamicAllocation.maxExecutors": "2",
+				"spark.autotune.trackingId": "512f9437-2684-4f45-a419-13a4f76acf38"
+			}
+		},
+		"metadata": {
+			"saveOutput": true,
+			"synapse_widget": {
+				"version": "0.1"
+			},
+			"enableDebugMode": false,
+			"language_info": {
+				"name": "python"
+			},
+			"a365ComputeOptions": {
+				"id": "/subscriptions/c48fd04c-8f2d-4a0c-9fca-0e28ce3c60c7/resourceGroups/Please_use_resource_carfully/providers/Microsoft.Synapse/workspaces/tayyabspace/bigDataPools/sparkpool",
+				"name": "sparkpool",
+				"type": "Spark",
+				"endpoint": "https://tayyabspace.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/sparkpool",
+				"auth": {
+					"type": "AAD",
+					"authResource": "https://dev.azuresynapse.net",
+					"authHeader": null
+				},
+				"sparkVersion": "3.5",
+				"nodeCount": 10,
+				"cores": 4,
+				"memory": 28,
+				"extraHeader": null
+			},
+			"sessionKeepAliveTimeout": 30
+		},
+		"cells": [
+			{
+				"cell_type": "code",
+				"source": [
+					"from pyspark.sql.functions import *\n",
+					"from delta.tables import DeltaTable\n",
+					"from notebookutils import mssparkutils\n",
+					"import json\n",
+					"\n",
+					"staging_path = \"abfss://ecommerce@tayyabadls.dfs.core.windows.net/staging/\"\n",
+					"bronze_path   = \"abfss://ecommerce@tayyabadls.dfs.core.windows.net/bronze/\"\n",
+					"silver_path   = \"abfss://ecommerce@tayyabadls.dfs.core.windows.net/scheduled_silver/\"\n",
+					"metadata_path = \"abfss://ecommerce@tayyabadls.dfs.core.windows.net/metadata_scheduled/processed_files.json\"\n",
+					"\n",
+					"# ── 1 Pehle se process hui files ki list lo\n",
+					"try:\n",
+					"    content = mssparkutils.fs.head(metadata_path) #vyeh json k andar ka text dega in string\n",
+					"    processed_files = json.loads(content) # make it as python object (list)\n",
+					"except:\n",
+					"    processed_files = []\n",
+					"\n",
+					"print(f\" processed files: {processed_files}\")\n",
+					"\n",
+					"#  2 Staging all csv files\n",
+					"all_files = mssparkutils.fs.ls(staging_path)\n",
+					"\n",
+					"# Sirf woh files lo jo pehle process nahi hui\n",
+					"new_files = [f for f in all_files if f.name.endswith(\".csv\") and f.name not in processed_files]\n",
+					"\n",
+					"print(f\"New files: {[f.name for f in new_files]}\")\n",
+					"\n",
+					"if not new_files:\n",
+					"    print(\"no new files.\")\n",
+					"\n",
+					"else:\n",
+					"    #  4 Nai files Bronze mein copy karo as-is backup\n",
+					"    for f in new_files:\n",
+					"        mssparkutils.fs.cp(f.path, bronze_path + f.name)\n",
+					"    print(f\"Bronze mein copy ho gayi: {[f.name for f in new_files]}\")\n",
+					"\n",
+					"    #  5 Sirf nai files read karo\n",
+					"    df_raw = spark.read \\\n",
+					"        .format(\"csv\") \\\n",
+					"        .option(\"header\", \"true\") \\\n",
+					"        .option(\"inferSchema\", \"true\") \\\n",
+					"        .load([f.path for f in new_files])\n",
+					"\n",
+					"    #  6. Columns select karo\n",
+					"    df = df_raw.select(\n",
+					"        \"user_id\", \"product_id\", \"category\", \"subcategory\",\"brand\", \"price\", \"discount\",\n",
+					"         \"final_price\", \"rating\", \"review_count\", \"stock\",\"seller_id\", \"seller_rating\",\n",
+					"        \"purchase_date\", \"shipping_time_days\", \"location\", \"device\", \"payment_method\", \"is_returned\", \"delivery_status\"\n",
+					"    )\n",
+					"\n",
+					"    #  7. Transform\n",
+					"    df_clean = df \\\n",
+					"        .withColumn(\"purchase_date\",   to_date(col(\"purchase_date\"))) \\\n",
+					"        .withColumn(\"category\",        trim(col(\"category\"))) \\\n",
+					"        .withColumn(\"delivery_status\", trim(col(\"delivery_status\"))) \\\n",
+					"        .withColumn(\"ingested_at\",     current_timestamp()) \\\n",
+					"        .dropna(subset=[\"user_id\", \"product_id\", \"purchase_date\"])\n",
+					"\n",
+					"    #  8. Silver writing the table\n",
+					"    # 1st  overwrite new table create\n",
+					"    # 2nd  MERGE no duplicates\n",
+					"    if DeltaTable.isDeltaTable(spark, silver_path):\n",
+					"        DeltaTable.forPath(spark, silver_path).alias(\"existing\") \\\n",
+					"            .merge(\n",
+					"                df_clean.alias(\"new\"),\n",
+					"                \"\"\"existing.user_id = new.user_id\n",
+					"                   AND existing.product_id = new.product_id\n",
+					"                   AND existing.purchase_date = new.purchase_date\"\"\"\n",
+					"            ) \\\n",
+					"            .whenNotMatched().insertAll() \\\n",
+					"            .execute()\n",
+					"    else:\n",
+					"        df_clean.write \\\n",
+					"            .format(\"delta\") \\\n",
+					"            .mode(\"overwrite\") \\\n",
+					"            .save(silver_path)\n",
+					"\n",
+					"    # 9 Metadata update \n",
+					"    updated_list = processed_files + [f.name for f in new_files]\n",
+					"    mssparkutils.fs.put(metadata_path, json.dumps(updated_list), overwrite=True)"
+				]
+			}
+		]
+	}
+}

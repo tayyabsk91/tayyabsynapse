@@ -1,0 +1,17 @@
+{
+	"name": "EXTERNAL_tABLES",
+	"properties": {
+		"content": {
+			"query": "CREATE EXTERNAL FILE FORMAT formatcsv\nWITH (\n    FORMAT_TYPE = DELIMITEDTEXT,\n    FORMAT_OPTIONS (\n        FIELD_TERMINATOR = ',',\n        FIRST_ROW = 2,\n        USE_TYPE_DEFAULT = TRUE\n    )\n);\n\n\ncreate external table product\n(\n    product_sk varchar(4000),\n    product_code varchar(4000),\n    product_name varchar(4000),\n    department varchar(4000),\n    category varchar(4000),\n    supplier_sk varchar(4000),\n    list_price varchar(4000),\n    uom varchar(4000)\n)\nWITH (\n    LOCATION = 'samples_External_files/dim_product.csv',\n    DATA_SOURCE = external_source,\n    FILE_FORMAT = formatcsv\n   \n);\n\n\nselect * from sys.external_data_sources where name = 'external_source'\n\nselect * from  dbo.product \n\nSELECT * FROM sys.exteral_s",
+			"metadata": {
+				"language": "sql"
+			},
+			"currentConnection": {
+				"databaseName": "tayyab_db",
+				"poolName": "Built-in"
+			},
+			"resultLimit": 5000
+		},
+		"type": "SqlQuery"
+	}
+}

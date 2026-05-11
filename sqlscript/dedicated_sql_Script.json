@@ -1,0 +1,17 @@
+{
+	"name": "dedicated_sql_Script",
+	"properties": {
+		"content": {
+			"query": "CREATE EXTERNAL DATA SOURCE extsource\nWITH (\n    LOCATION = 'https://tayyabexternal.blob.core.windows.net/externalsamplefiles',\n    CREDENTIAL = extcreds\n);\n\ncreate DATABASE SCOPED CREDENTIAL extcreds\nwith IDENTITY = 'Managed Identity'\n\nCREATE EXTERNAL FILE FORMAT csvext\nWITH (\n    FORMAT_TYPE = DELIMITEDTEXT,\n    FORMAT_OPTIONS (FIELD_TERMINATOR = ',',FIRST_ROW = 2)\n);\n\n-- JO 1. 2 NO DERHAHA HU vo order hai kis order me column chahiye\nCOPY INTO dbo.copy_into\n(\n    customer_sk,\n    customer_code,\n    first_name,\n    last_name,\n    gender,\n    email,\n    phone,\n    loyalty_tier,\n    signup_date\n)\nFROM 'https://tayyabexternal.blob.core.windows.net/externalsamplefiles/CSV_FILE/dim_customer.csv'\nWITH (\n    FILE_TYPE = 'CSV',\n    FIRSTROW = 2,\n    FIELDTERMINATOR = ',',\n    CREDENTIAL = (IDENTITY = 'Managed Identity')\n);\n\nCREATE VIEW viewex\nAS (\nSELECT * FROM copy_into\n)\n\n\n--crerating external table in dedidcatedsqlpool\n\n\nCREATE EXTERNAL table exttable\n(\n    customer_sk varchar(4000),\n    customer_code varchar(4000),\n    first_name varchar(4000),\n    last_name varchar(4000),\n    gender varchar(4000),\n    email varchar(4000),\n    phone varchar(4000),\n    loyalty_tier varchar(4000),\n    signup_date varchar(4000)\n)\nWITH (\n    LOCATION = '/dim_customer.csv',\n    DATA_SOURCE = abfsspath,\n    FILE_FORMAT = csvext\n)\n\ncreate table polybase_table\nwith (\n        DISTRIBUTION = ROUND_ROBIN\n)\nas SELECT * from exttable\n\n\n\n\n-- for abfss path datasource because in dedicatedsqlpool it only accepts the abfss path only \nCREATE EXTERNAL DATA SOURCE abfsspath\nWITH (\n    LOCATION = 'abfss://externalsamplefiles@tayyabexternal.dfs.core.windows.net/CSV_FILE/',\n    CREDENTIAL = extcreds\n);\n",
+			"metadata": {
+				"language": "sql"
+			},
+			"currentConnection": {
+				"databaseName": "Tayyabdedicatedpool",
+				"poolName": "Tayyabdedicatedpool"
+			},
+			"resultLimit": 5000
+		},
+		"type": "SqlQuery"
+	}
+}

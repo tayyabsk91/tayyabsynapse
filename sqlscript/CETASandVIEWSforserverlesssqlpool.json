@@ -1,0 +1,17 @@
+{
+	"name": "CETASandVIEWSforserverlesssqlpool",
+	"properties": {
+		"content": {
+			"query": "--CETAS ( not defining columns and all as we directly storing another query results)\nCREATE EXTERNAL TABLE cetas_table\nwith (\n    LOCATION = 'cetas_external_table',\n    DATA_SOURCE = external_source,\n    FILE_FORMAT = formatcsv\n)\nas \nSELECT *\nFROM OPENROWSET(\n        BULK '/samples_External_files/dim_product.csv',\n\t\tDATA_SOURCE = 'external_source',\n        FORMAT='CSV',\n        PARSER_VERSION='2.0',\n        HEADER_ROW = TRUE\n) AS data;\n\n--- VIEWS \ncreate VIEW view_query\nas \nSELECT * from \nOPENROWSET (\n        BULK 'samples_External_files/dim_date.csv',\n\t\tDATA_SOURCE = 'external_source',\n        FORMAT='CSV',\n        PARSER_VERSION='2.0',\n        HEADER_ROW = TRUE\n) as query1\n\n\n\n\n",
+			"metadata": {
+				"language": "sql"
+			},
+			"currentConnection": {
+				"databaseName": "tayyab_db",
+				"poolName": "Built-in"
+			},
+			"resultLimit": 5000
+		},
+		"type": "SqlQuery"
+	}
+}

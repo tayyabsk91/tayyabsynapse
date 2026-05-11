@@ -1,0 +1,127 @@
+{
+	"name": "param_json",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "tayyabspace-WorkspaceDefaultStorage",
+			"type": "LinkedServiceReference"
+		},
+		"annotations": [],
+		"type": "Json",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"fileName": "part-00000-f82e603a-473b-4516-a578-80e88bf97ae3-c000.json",
+				"folderPath": "raw",
+				"fileSystem": "todaystask"
+			}
+		},
+		"schema": {
+			"type": "object",
+			"properties": {
+				"limit": {
+					"type": "integer"
+				},
+				"availabilityStatus": {
+					"type": "string"
+				},
+				"brand": {
+					"type": "string"
+				},
+				"category": {
+					"type": "string"
+				},
+				"description": {
+					"type": "string"
+				},
+				"depth": {
+					"type": "number"
+				},
+				"height": {
+					"type": "number"
+				},
+				"width": {
+					"type": "number"
+				},
+				"discountPercentage": {
+					"type": "number"
+				},
+				"id": {
+					"type": "integer"
+				},
+				"images": {
+					"type": "string"
+				},
+				"barcode": {
+					"type": "integer"
+				},
+				"createdAt": {
+					"type": "string"
+				},
+				"qrCode": {
+					"type": "string"
+				},
+				"minimumOrderQuantity": {
+					"type": "integer"
+				},
+				"updatedAt": {
+					"type": "string"
+				},
+				"price": {
+					"type": "number"
+				},
+				"products_rating": {
+					"type": "number"
+				},
+				"returnPolicy": {
+					"type": "string"
+				},
+				"comment": {
+					"type": "string"
+				},
+				"date": {
+					"type": "string"
+				},
+				"rating": {
+					"type": "integer"
+				},
+				"reviewerName": {
+					"type": "string"
+				},
+				"reviewerEmail": {
+					"type": "string"
+				},
+				"shippingInformation": {
+					"type": "string"
+				},
+				"sku": {
+					"type": "string"
+				},
+				"stock": {
+					"type": "integer"
+				},
+				"tags": {
+					"type": "string"
+				},
+				"thumbnail": {
+					"type": "string"
+				},
+				"title": {
+					"type": "string"
+				},
+				"warrantyInformation": {
+					"type": "string"
+				},
+				"weight": {
+					"type": "integer"
+				},
+				"skip": {
+					"type": "boolean"
+				},
+				"total": {
+					"type": "integer"
+				}
+			}
+		}
+	},
+	"type": "Microsoft.Synapse/workspaces/datasets"
+}

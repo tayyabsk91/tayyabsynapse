@@ -1,0 +1,234 @@
+{
+	"name": "nb_bronze_products",
+	"properties": {
+		"nbformat": 4,
+		"nbformat_minor": 2,
+		"bigDataPool": {
+			"referenceName": "sparkpool",
+			"type": "BigDataPoolReference"
+		},
+		"sessionProperties": {
+			"driverMemory": "28g",
+			"driverCores": 4,
+			"executorMemory": "28g",
+			"executorCores": 4,
+			"numExecutors": 2,
+			"runAsWorkspaceSystemIdentity": false,
+			"conf": {
+				"spark.dynamicAllocation.enabled": "false",
+				"spark.dynamicAllocation.minExecutors": "2",
+				"spark.dynamicAllocation.maxExecutors": "2",
+				"spark.autotune.trackingId": "6b05b50d-cf78-41c1-9da4-e4a286ccbf6d"
+			}
+		},
+		"metadata": {
+			"saveOutput": true,
+			"synapse_widget": {
+				"version": "0.1"
+			},
+			"enableDebugMode": false,
+			"language_info": {
+				"name": "python"
+			},
+			"a365ComputeOptions": {
+				"id": "/subscriptions/c48fd04c-8f2d-4a0c-9fca-0e28ce3c60c7/resourceGroups/Please_use_resource_carfully/providers/Microsoft.Synapse/workspaces/tayyabspace/bigDataPools/sparkpool",
+				"name": "sparkpool",
+				"type": "Spark",
+				"endpoint": "https://tayyabspace.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/sparkpool",
+				"auth": {
+					"type": "AAD",
+					"authResource": "https://dev.azuresynapse.net",
+					"authHeader": null
+				},
+				"sparkVersion": "3.5",
+				"nodeCount": 10,
+				"cores": 4,
+				"memory": 28,
+				"extraHeader": null
+			},
+			"sessionKeepAliveTimeout": 30
+		},
+		"cells": [
+			{
+				"cell_type": "code",
+				"source": [
+					"# Cell 1\n",
+					"import requests\n",
+					"import json\n",
+					"import hashlib\n",
+					"import struct\n",
+					"import pyodbc\n",
+					"import pandas as pd\n",
+					"from datetime import date\n",
+					"from pyspark.sql.types import (\n",
+					"    StructType, StructField, StringType,\n",
+					"    DoubleType, ShortType, DateType\n",
+					")\n",
+					"from pyspark.sql.functions import *"
+				],
+				"execution_count": 4
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"# Cell 2\n",
+					"def fetch_all_products():\n",
+					"    url = \"https://dummyjson.com/products\"\n",
+					"    limit = 30\n",
+					"    skip = 0\n",
+					"    all_products = []\n",
+					"\n",
+					"    while True:\n",
+					"        resp = requests.get(f\"{url}?limit={limit}&skip={skip}\")\n",
+					"        resp.raise_for_status()\n",
+					"        data = resp.json()\n",
+					"        products = data.get(\"products\", [])\n",
+					"        if not products:\n",
+					"            break\n",
+					"        all_products.extend(products)\n",
+					"        skip += limit\n",
+					"        if skip >= data.get(\"total\", 0):\n",
+					"            break\n",
+					"\n",
+					"    return all_products\n",
+					"\n",
+					"raw_products = fetch_all_products()"
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"today = str(date.today())\n",
+					"bronze_path = f\"abfss://todaystask@tayyabadls.dfs.core.windows.net/bronze/products/{today}/products_raw.json\"\n",
+					"\n",
+					"mssparkutils.fs.put(bronze_path, json.dumps(raw_products, indent=2), overwrite=True)\n",
+					"\n",
+					"raw_json = spark.read.text(bronze_path).collect()\n",
+					"raw_json = \"\".join([row.value for row in raw_json])\n",
+					"raw_products = json.loads(raw_json)"
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"from pyspark.sql import Row\n",
+					"from datetime import date\n",
+					"\n",
+					"def flatten_product(p):\n",
+					"    dim = p.get(\"dimensions\", {})\n",
+					"    meta = p.get(\"meta\", {})\n",
+					"    hash_key = hashlib.sha256(json.dumps({\n",
+					"        \"product_id\": p.get(\"id\"),\n",
+					"        \"price\": p.get(\"price\"),\n",
+					"        \"stock\": p.get(\"stock\"),\n",
+					"        \"discount_percentage\": p.get(\"discountPercentage\")\n",
+					"    }, sort_keys=True).encode()).hexdigest()\n",
+					"\n",
+					"    return Row(\n",
+					"        product_id             = int(p.get(\"id\", 0)),\n",
+					"        title                  = str(p.get(\"title\", \"\") or \"\"),\n",
+					"        description            = str(p.get(\"description\", \"\") or \"\")[:1000],\n",
+					"        category               = str(p.get(\"category\", \"\") or \"\"),\n",
+					"        brand                  = str(p.get(\"brand\", \"\") or \"\"),\n",
+					"        sku                    = str(p.get(\"sku\", \"\") or \"\"),\n",
+					"        price                  = float(p.get(\"price\", 0.0) or 0.0),\n",
+					"        discount_percentage    = float(p.get(\"discountPercentage\", 0.0) or 0.0),\n",
+					"        rating                 = float(p.get(\"rating\", 0.0) or 0.0),\n",
+					"        stock                  = int(p.get(\"stock\", 0) or 0),\n",
+					"        availability_status    = str(p.get(\"availabilityStatus\", \"\") or \"\"),\n",
+					"        minimum_order_quantity = int(p.get(\"minimumOrderQuantity\", 1) or 1),\n",
+					"        weight                 = int(p.get(\"weight\", 0) or 0),\n",
+					"        depth                  = float(dim.get(\"depth\", 0.0) or 0.0),\n",
+					"        height                 = float(dim.get(\"height\", 0.0) or 0.0),\n",
+					"        width                  = float(dim.get(\"width\", 0.0) or 0.0),\n",
+					"        warranty_information   = str(p.get(\"warrantyInformation\", \"\") or \"\"),\n",
+					"        shipping_information   = str(p.get(\"shippingInformation\", \"\") or \"\"),\n",
+					"        return_policy          = str(p.get(\"returnPolicy\", \"\") or \"\"),\n",
+					"        barcode                = str(meta.get(\"barcode\", \"\") or \"\"),\n",
+					"        thumbnail              = str(p.get(\"thumbnail\", \"\") or \"\")[:500],\n",
+					"        created_at             = str(meta.get(\"createdAt\", \"\") or \"\"),\n",
+					"        updated_at             = str(meta.get(\"updatedAt\", \"\") or \"\"),\n",
+					"        load_date              = date.today(),\n",
+					"        source_system          = \"dummyjson\",\n",
+					"        hash_key               = hash_key\n",
+					"    )\n",
+					"\n",
+					"rows = [flatten_product(p) for p in raw_products]"
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"# Cell 5\n",
+					"schema = StructType([\n",
+					"    StructField(\"product_id\",              ShortType(),  True),\n",
+					"    StructField(\"title\",                   StringType(), True),\n",
+					"    StructField(\"description\",             StringType(), True),\n",
+					"    StructField(\"category\",                StringType(), True),\n",
+					"    StructField(\"brand\",                   StringType(), True),\n",
+					"    StructField(\"sku\",                     StringType(), True),\n",
+					"    StructField(\"price\",                   DoubleType(), True),\n",
+					"    StructField(\"discount_percentage\",     DoubleType(), True),\n",
+					"    StructField(\"rating\",                  DoubleType(), True),\n",
+					"    StructField(\"stock\",                   ShortType(),  True),\n",
+					"    StructField(\"availability_status\",     StringType(), True),\n",
+					"    StructField(\"minimum_order_quantity\",  ShortType(),  True),\n",
+					"    StructField(\"weight\",                  ShortType(),  True),\n",
+					"    StructField(\"depth\",                   DoubleType(), True),\n",
+					"    StructField(\"height\",                  DoubleType(), True),\n",
+					"    StructField(\"width\",                   DoubleType(), True),\n",
+					"    StructField(\"warranty_information\",    StringType(), True),\n",
+					"    StructField(\"shipping_information\",    StringType(), True),\n",
+					"    StructField(\"return_policy\",           StringType(), True),\n",
+					"    StructField(\"barcode\",                 StringType(), True),\n",
+					"    StructField(\"thumbnail\",               StringType(), True),\n",
+					"    StructField(\"created_at\",              StringType(), True),\n",
+					"    StructField(\"updated_at\",              StringType(), True),\n",
+					"    StructField(\"load_date\",               DateType(),   True),\n",
+					"    StructField(\"source_system\",           StringType(), True),\n",
+					"    StructField(\"hash_key\",                StringType(), True),\n",
+					"])\n",
+					"\n",
+					"df = spark.createDataFrame(rows, schema=schema)"
+				]
+			},
+			{
+				"cell_type": "code",
+				"source": [
+					"import struct\n",
+					"import pyodbc\n",
+					"import pandas as pd\n",
+					"\n",
+					"token = mssparkutils.credentials.getToken(\"DW\")\n",
+					"token_bytes = token.encode(\"UTF-8\")\n",
+					"exptoken = b\"\".join([bytes([b, 0]) for b in token_bytes])\n",
+					"tokenstruct = struct.pack(\"=i\", len(exptoken)) + exptoken\n",
+					"\n",
+					"conn = pyodbc.connect(\n",
+					"    \"Driver={ODBC Driver 18 for SQL Server};\"\n",
+					"    \"Server=tayyabspace.sql.azuresynapse.net,1433;\"\n",
+					"    \"Database=Tayyabdedicatedpool;\"\n",
+					"    \"Encrypt=yes;\"\n",
+					"    \"TrustServerCertificate=no;\",\n",
+					"    attrs_before={1256: tokenstruct},\n",
+					"    autocommit=True\n",
+					")\n",
+					"\n",
+					"cursor = conn.cursor()\n",
+					"cursor.execute(\"TRUNCATE TABLE stg_products\")\n",
+					"\n",
+					"pandas_df = df.toPandas()\n",
+					"cols = \", \".join(pandas_df.columns)\n",
+					"placeholders = \", \".join([\"?\" for _ in pandas_df.columns])\n",
+					"insert_sql = f\"INSERT INTO stg_products ({cols}) VALUES ({placeholders})\"\n",
+					"\n",
+					"cursor.fast_executemany = True\n",
+					"cursor.executemany(insert_sql, pandas_df.values.tolist())\n",
+					"\n",
+					"cursor.close()\n",
+					"conn.close()"
+				]
+			}
+		]
+	}
+}

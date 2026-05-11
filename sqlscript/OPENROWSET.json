@@ -1,0 +1,17 @@
+{
+	"name": "OPENROWSET",
+	"properties": {
+		"content": {
+			"query": "CREATE EXTERNAL TABLE ext_table3\n(\n\tfirst_name VARCHAR(4000),\n\tlast_name VARCHAR(4000),\n\tgender VARCHAR(4000),\n\temail VARCHAR(4000),\n\tphone VARCHAR(4000),\n\tloyalty_tier VARCHAR(4000) ,\n\tsignup_date VARCHAR(4000)\n)\nwith (\n\tLOCATION = 'CSV_FILE',\n\tDATA_SOURCE = external_source,\n\tFILE_FORMAT = csvheader\n)\n\nSELECT * FROM ext_table\nselect * from sys.external_data_sources where name  = 'external_source'\n\n\nSELECT * FROM sys.external_file_formats where name = 'csv_format'\n\nselect * from ext_table2\n\nCREATE EXTERNAL FILE FORMAT csvheader\nWITH (\n    FORMAT_TYPE = DELIMITEDTEXT,\n    FORMAT_OPTIONS (FIELD_TERMINATOR = ',',FIRST_ROW = 2)\n);\n\nSELECT *\nFROM OPENROWSET(\n        BULK '/samples_External_files/dim_product.csv',\n\t\tDATA_SOURCE = 'external_source',\n        FORMAT='CSV',\n        PARSER_VERSION='2.0',\n        HEADER_ROW = TRUE\n) AS data;\n\nselect * from ext_table1\n\n\n-- EXTERNAL DATA SOURCE AND SCOPED CREDENTIAL EXAMPLE \n\nCREATE EXTERNAL DATA SOURCE MySource\nWITH (\n    LOCATION = 'https://myaccount.dfs.core.windows.net/mycontainer',\n    CREDENTIAL = MyCredential\n);\n\n\nCREATE DATABASE SCOPED CREDENTIAL MyManagedIdentityCred\nWITH IDENTITY = 'Managed Identity'; -- SYNAPSE WILL AUTOMATICALLY ACCESS NO NEED FO RSAS OR ACCESS KEY JUST ALLOW STORAGE BLOB DATA CONTIRBNUTOR TO SYNAPSE WORKSPACE ON THAT SOTRAGE ACCOUNT \n\n\n-- MASTER KEYFOR SYNAPSE EK DATABASE ME SIRF EK MASTER KEY YEH BASICALLY CREDENTIALS KO EMNCRYPT KRKE STORE KRTIU NA KI PLAIN TEXT (SCOPED CREDENTIAL DATA SOURCE ETC )\nCREATE MASTER KEY ENCRYPTION BY PASSWORD = 'YourStrongPassword123!'; \n\n-- EXTERNAL FILE FORMAT EXAMPLE AGAR EXTERNAL FILE KE UPAR TABLE BNANA CHAHRE TO ISE BNANA PDEGA KYUKI YEH FILE KE UPAR SCHEMA BNAATA JISSE AS A TABLE READ KR PATA \n\nCREATE EXTERNAL FILE FORMAT csvheader\nWITH (\n    FORMAT_TYPE = DELIMITEDTEXT,\n    FORMAT_OPTIONS (FIELD_TERMINATOR = ',',FIRST_ROW = 2)\n",
+			"metadata": {
+				"language": "sql"
+			},
+			"currentConnection": {
+				"databaseName": "tayyab_db",
+				"poolName": "Built-in"
+			},
+			"resultLimit": 5000
+		},
+		"type": "SqlQuery"
+	}
+}

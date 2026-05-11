@@ -1,0 +1,27 @@
+{
+	"name": "event_trigger",
+	"properties": {
+		"annotations": [],
+		"runtimeState": "Started",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "event_mv_stg_to_raw",
+					"type": "PipelineReference"
+				},
+				"parameters": {
+					"file_name": "@triggerBody().fileName"
+				}
+			}
+		],
+		"type": "BlobEventsTrigger",
+		"typeProperties": {
+			"blobPathBeginsWith": "/ecommerce/blobs/staging/",
+			"ignoreEmptyBlobs": true,
+			"scope": "/subscriptions/c48fd04c-8f2d-4a0c-9fca-0e28ce3c60c7/resourceGroups/Please_use_resource_carfully/providers/Microsoft.Storage/storageAccounts/tayyabadls",
+			"events": [
+				"Microsoft.Storage.BlobCreated"
+			]
+		}
+	}
+}
