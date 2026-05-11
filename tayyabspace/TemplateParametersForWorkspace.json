@@ -1,0 +1,39 @@
+{
+	"$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"workspaceName": {
+			"value": "tayyabspace"
+		},
+		"synapse_to_azuresql_password": {
+			"value": ""
+		},
+		"tayyabspace-WorkspaceDefaultSqlServer_connectionString": {
+			"value": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:tayyabspace.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
+		},
+		"AzureDataLakeStorage1_properties_typeProperties_url": {
+			"value": "https://tayyabexternal.dfs.core.windows.net/"
+		},
+		"RestService1_properties_typeProperties_url": {
+			"value": "https://dummyjson.com/products"
+		},
+		"synapse_to_azuresql_properties_typeProperties_server": {
+			"value": "tayyabserver.database.windows.net"
+		},
+		"synapse_to_azuresql_properties_typeProperties_database": {
+			"value": "StudentMentalHealthDB"
+		},
+		"synapse_to_azuresql_properties_typeProperties_userName": {
+			"value": "tayyab"
+		},
+		"tayyabspace-WorkspaceDefaultStorage_properties_typeProperties_url": {
+			"value": "https://tayyabadls.dfs.core.windows.net"
+		},
+		"event_trigger_properties_event_mv_stg_to_raw_parameters_file_name": {
+			"value": "@triggerBody().fileName"
+		},
+		"event_trigger_properties_typeProperties_scope": {
+			"value": "/subscriptions/c48fd04c-8f2d-4a0c-9fca-0e28ce3c60c7/resourceGroups/Please_use_resource_carfully/providers/Microsoft.Storage/storageAccounts/tayyabadls"
+		}
+	}
+}

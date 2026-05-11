@@ -1,0 +1,1955 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"workspaceName": {
+			"type": "string",
+			"metadata": "Workspace name",
+			"defaultValue": "tayyabspace"
+		},
+		"synapse_to_azuresql_password": {
+			"type": "secureString",
+			"metadata": "Secure string for 'password' of 'synapse_to_azuresql'"
+		},
+		"tayyabspace-WorkspaceDefaultSqlServer_connectionString": {
+			"type": "secureString",
+			"metadata": "Secure string for 'connectionString' of 'tayyabspace-WorkspaceDefaultSqlServer'",
+			"defaultValue": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:tayyabspace.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
+		},
+		"AzureDataLakeStorage1_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://tayyabexternal.dfs.core.windows.net/"
+		},
+		"RestService1_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://dummyjson.com/products"
+		},
+		"synapse_to_azuresql_properties_typeProperties_server": {
+			"type": "string",
+			"defaultValue": "tayyabserver.database.windows.net"
+		},
+		"synapse_to_azuresql_properties_typeProperties_database": {
+			"type": "string",
+			"defaultValue": "StudentMentalHealthDB"
+		},
+		"synapse_to_azuresql_properties_typeProperties_userName": {
+			"type": "string",
+			"defaultValue": "tayyab"
+		},
+		"tayyabspace-WorkspaceDefaultStorage_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://tayyabadls.dfs.core.windows.net"
+		},
+		"event_trigger_properties_event_mv_stg_to_raw_parameters_file_name": {
+			"type": "string",
+			"defaultValue": "@triggerBody().fileName"
+		},
+		"event_trigger_properties_typeProperties_scope": {
+			"type": "string",
+			"defaultValue": "/subscriptions/c48fd04c-8f2d-4a0c-9fca-0e28ce3c60c7/resourceGroups/Please_use_resource_carfully/providers/Microsoft.Storage/storageAccounts/tayyabadls"
+		}
+	},
+	"variables": {
+		"workspaceId": "[concat('Microsoft.Synapse/workspaces/', parameters('workspaceName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('workspaceName'), '/event_mv_stg_to_raw')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"activities": [
+					{
+						"name": "Copy data1",
+						"type": "Copy",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "DelimitedTextSource",
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": false,
+									"enablePartitionDiscovery": false
+								},
+								"formatSettings": {
+									"type": "DelimitedTextReadSettings"
+								}
+							},
+							"sink": {
+								"type": "DelimitedTextSink",
+								"storeSettings": {
+									"type": "AzureBlobFSWriteSettings"
+								},
+								"formatSettings": {
+									"type": "DelimitedTextWriteSettings",
+									"quoteAllText": true,
+									"fileExtension": ".txt"
+								}
+							},
+							"enableStaging": false,
+							"translator": {
+								"type": "TabularTranslator",
+								"typeConversion": true,
+								"typeConversionSettings": {
+									"allowDataTruncation": true,
+									"treatBooleanAsNumber": false
+								}
+							}
+						},
+						"inputs": [
+							{
+								"referenceName": "csv_ds",
+								"type": "DatasetReference",
+								"parameters": {
+									"file_name": {
+										"value": "@pipeline().parameters.file_name",
+										"type": "Expression"
+									}
+								}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "DelimitedText1",
+								"type": "DatasetReference",
+								"parameters": {}
+							}
+						]
+					},
+					{
+						"name": "raw_silver",
+						"type": "SynapseNotebook",
+						"dependsOn": [
+							{
+								"activity": "Copy data1",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebook": {
+								"referenceName": "raw_silver",
+								"type": "NotebookReference"
+							},
+							"parameters": {
+								"file_name": {
+									"value": {
+										"value": "@pipeline().parameters.file_name",
+										"type": "Expression"
+									},
+									"type": "string"
+								}
+							},
+							"snapshot": true,
+							"sparkPool": {
+								"referenceName": "sparkpool",
+								"type": "BigDataPoolReference"
+							},
+							"executorSize": "Small",
+							"conf": {
+								"spark.dynamicAllocation.enabled": false
+							},
+							"driverSize": "Small"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"parameters": {
+					"file_name": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-05-05T10:30:40Z"
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/datasets/csv_ds')]",
+				"[concat(variables('workspaceId'), '/datasets/DelimitedText1')]",
+				"[concat(variables('workspaceId'), '/notebooks/raw_silver')]",
+				"[concat(variables('workspaceId'), '/bigDataPools/sparkpool')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/pl_load_products')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"activities": [
+					{
+						"name": "nb_bronze_products",
+						"type": "SynapseNotebook",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebook": {
+								"referenceName": "nb_bronze_products",
+								"type": "NotebookReference"
+							},
+							"snapshot": true,
+							"sparkPool": {
+								"referenceName": "sparkpool",
+								"type": "BigDataPoolReference"
+							},
+							"executorSize": "Small",
+							"conf": {
+								"spark.dynamicAllocation.enabled": false
+							},
+							"driverSize": "Small"
+						}
+					},
+					{
+						"name": "SQL pool stored procedure1",
+						"type": "SqlPoolStoredProcedure",
+						"dependsOn": [
+							{
+								"activity": "nb_bronze_products",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"sqlPool": {
+							"referenceName": "Tayyabdedicatedpool",
+							"type": "SqlPoolReference"
+						},
+						"typeProperties": {
+							"storedProcedureName": "[dbo].[sp_load_products]"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-05-06T11:16:43Z"
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/notebooks/nb_bronze_products')]",
+				"[concat(variables('workspaceId'), '/bigDataPools/sparkpool')]",
+				"[concat(variables('workspaceId'), '/sqlPools/Tayyabdedicatedpool')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/scheduled_mv_stg_to_raw')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"activities": [
+					{
+						"name": "scheduled_raw_silver",
+						"type": "SynapseNotebook",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebook": {
+								"referenceName": "scheduled_raw_silver",
+								"type": "NotebookReference"
+							},
+							"snapshot": true,
+							"sparkPool": {
+								"referenceName": "sparkpool",
+								"type": "BigDataPoolReference"
+							},
+							"executorSize": "Small",
+							"conf": {
+								"spark.dynamicAllocation.enabled": false
+							},
+							"driverSize": "Small"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-05-05T10:05:06Z"
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/notebooks/scheduled_raw_silver')]",
+				"[concat(variables('workspaceId'), '/bigDataPools/sparkpool')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/std_lfiestyle_dep')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"activities": [
+					{
+						"name": "studentcare",
+						"type": "SynapseNotebook",
+						"dependsOn": [],
+						"policy": {
+							"timeout": "0.12:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebook": {
+								"referenceName": "studentcare",
+								"type": "NotebookReference"
+							},
+							"snapshot": true,
+							"sparkPool": {
+								"referenceName": "sparkpool",
+								"type": "BigDataPoolReference"
+							},
+							"executorSize": "Small",
+							"conf": {
+								"spark.dynamicAllocation.enabled": false
+							},
+							"driverSize": "Small"
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {}
+				},
+				"annotations": [],
+				"lastPublishTime": "2026-05-10T14:57:28Z"
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/notebooks/studentcare')]",
+				"[concat(variables('workspaceId'), '/bigDataPools/sparkpool')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/DelimitedText1')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "tayyabspace-WorkspaceDefaultStorage",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "raw",
+						"fileSystem": "ecommerce"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/tayyabspace-WorkspaceDefaultStorage')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/csv_ds')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "tayyabspace-WorkspaceDefaultStorage",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"file_name": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": {
+							"value": "@dataset().file_name",
+							"type": "Expression"
+						},
+						"folderPath": "staging",
+						"fileSystem": "ecommerce"
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": [
+					{
+						"name": "user_id",
+						"type": "String"
+					},
+					{
+						"name": "product_id",
+						"type": "String"
+					},
+					{
+						"name": "category",
+						"type": "String"
+					},
+					{
+						"name": "subcategory",
+						"type": "String"
+					},
+					{
+						"name": "brand",
+						"type": "String"
+					},
+					{
+						"name": "price",
+						"type": "String"
+					},
+					{
+						"name": "discount",
+						"type": "String"
+					},
+					{
+						"name": "final_price",
+						"type": "String"
+					},
+					{
+						"name": "rating",
+						"type": "String"
+					},
+					{
+						"name": "review_count",
+						"type": "String"
+					},
+					{
+						"name": "stock",
+						"type": "String"
+					},
+					{
+						"name": "seller_id",
+						"type": "String"
+					},
+					{
+						"name": "seller_rating",
+						"type": "String"
+					},
+					{
+						"name": "purchase_date",
+						"type": "String"
+					},
+					{
+						"name": "shipping_time_days",
+						"type": "String"
+					},
+					{
+						"name": "location",
+						"type": "String"
+					},
+					{
+						"name": "device",
+						"type": "String"
+					},
+					{
+						"name": "payment_method",
+						"type": "String"
+					},
+					{
+						"name": "is_returned",
+						"type": "String"
+					},
+					{
+						"name": "delivery_status",
+						"type": "String"
+					}
+				]
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/tayyabspace-WorkspaceDefaultStorage')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/param_ds_csv')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "tayyabspace-WorkspaceDefaultStorage",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"container": {
+						"type": "string"
+					},
+					"folder": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "DelimitedText",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": {
+							"value": "@dataset().folder",
+							"type": "Expression"
+						},
+						"fileSystem": {
+							"value": "@dataset().container",
+							"type": "Expression"
+						}
+					},
+					"columnDelimiter": ",",
+					"escapeChar": "\\",
+					"firstRowAsHeader": true,
+					"quoteChar": "\""
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/tayyabspace-WorkspaceDefaultStorage')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/param_json')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "tayyabspace-WorkspaceDefaultStorage",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "Json",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"fileName": "part-00000-f82e603a-473b-4516-a578-80e88bf97ae3-c000.json",
+						"folderPath": "raw",
+						"fileSystem": "todaystask"
+					}
+				},
+				"schema": {
+					"type": "object",
+					"properties": {
+						"limit": {
+							"type": "integer"
+						},
+						"availabilityStatus": {
+							"type": "string"
+						},
+						"brand": {
+							"type": "string"
+						},
+						"category": {
+							"type": "string"
+						},
+						"description": {
+							"type": "string"
+						},
+						"depth": {
+							"type": "number"
+						},
+						"height": {
+							"type": "number"
+						},
+						"width": {
+							"type": "number"
+						},
+						"discountPercentage": {
+							"type": "number"
+						},
+						"id": {
+							"type": "integer"
+						},
+						"images": {
+							"type": "string"
+						},
+						"barcode": {
+							"type": "integer"
+						},
+						"createdAt": {
+							"type": "string"
+						},
+						"qrCode": {
+							"type": "string"
+						},
+						"minimumOrderQuantity": {
+							"type": "integer"
+						},
+						"updatedAt": {
+							"type": "string"
+						},
+						"price": {
+							"type": "number"
+						},
+						"products_rating": {
+							"type": "number"
+						},
+						"returnPolicy": {
+							"type": "string"
+						},
+						"comment": {
+							"type": "string"
+						},
+						"date": {
+							"type": "string"
+						},
+						"rating": {
+							"type": "integer"
+						},
+						"reviewerName": {
+							"type": "string"
+						},
+						"reviewerEmail": {
+							"type": "string"
+						},
+						"shippingInformation": {
+							"type": "string"
+						},
+						"sku": {
+							"type": "string"
+						},
+						"stock": {
+							"type": "integer"
+						},
+						"tags": {
+							"type": "string"
+						},
+						"thumbnail": {
+							"type": "string"
+						},
+						"title": {
+							"type": "string"
+						},
+						"warrantyInformation": {
+							"type": "string"
+						},
+						"weight": {
+							"type": "integer"
+						},
+						"skip": {
+							"type": "boolean"
+						},
+						"total": {
+							"type": "integer"
+						}
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/tayyabspace-WorkspaceDefaultStorage')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/rest_api')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "RestService1",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "RestResource",
+				"typeProperties": {},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/RestService1')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/sink_ds')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "tayyabspace-WorkspaceDefaultStorage",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "Json",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "raw",
+						"fileSystem": "todaystask"
+					}
+				},
+				"schema": {}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/tayyabspace-WorkspaceDefaultStorage')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/src_Ds')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "tayyabspace-WorkspaceDefaultStorage",
+					"type": "LinkedServiceReference"
+				},
+				"annotations": [],
+				"type": "Json",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": "raw",
+						"fileSystem": "todaystask"
+					}
+				},
+				"schema": {}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/tayyabspace-WorkspaceDefaultStorage')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/AzureDataLakeStorage1')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('AzureDataLakeStorage1_properties_typeProperties_url')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/RestService1')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "RestService",
+				"typeProperties": {
+					"url": "[parameters('RestService1_properties_typeProperties_url')]",
+					"enableServerCertificateValidation": true,
+					"authenticationType": "Anonymous"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/synapse_to_azuresql')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureSqlDatabase",
+				"typeProperties": {
+					"server": "[parameters('synapse_to_azuresql_properties_typeProperties_server')]",
+					"database": "[parameters('synapse_to_azuresql_properties_typeProperties_database')]",
+					"encrypt": "mandatory",
+					"trustServerCertificate": false,
+					"authenticationType": "SQL",
+					"userName": "[parameters('synapse_to_azuresql_properties_typeProperties_userName')]",
+					"password": {
+						"type": "SecureString",
+						"value": "[parameters('synapse_to_azuresql_password')]"
+					}
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/tayyabspace-WorkspaceDefaultSqlServer')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"parameters": {
+					"DBName": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlDW",
+				"typeProperties": {
+					"connectionString": "[parameters('tayyabspace-WorkspaceDefaultSqlServer_connectionString')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/tayyabspace-WorkspaceDefaultStorage')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('tayyabspace-WorkspaceDefaultStorage_properties_typeProperties_url')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/event_trigger')]",
+			"type": "Microsoft.Synapse/workspaces/triggers",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"runtimeState": "Started",
+				"pipelines": [
+					{
+						"pipelineReference": {
+							"referenceName": "event_mv_stg_to_raw",
+							"type": "PipelineReference"
+						},
+						"parameters": {
+							"file_name": "[parameters('event_trigger_properties_event_mv_stg_to_raw_parameters_file_name')]"
+						}
+					}
+				],
+				"type": "BlobEventsTrigger",
+				"typeProperties": {
+					"blobPathBeginsWith": "/ecommerce/blobs/staging/",
+					"ignoreEmptyBlobs": true,
+					"scope": "[parameters('event_trigger_properties_typeProperties_scope')]",
+					"events": [
+						"Microsoft.Storage.BlobCreated"
+					]
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/pipelines/event_mv_stg_to_raw')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/scheduled_trigger')]",
+			"type": "Microsoft.Synapse/workspaces/triggers",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"runtimeState": "Stopped",
+				"pipelines": [
+					{
+						"pipelineReference": {
+							"referenceName": "scheduled_mv_stg_to_raw",
+							"type": "PipelineReference"
+						},
+						"parameters": {}
+					}
+				],
+				"type": "ScheduleTrigger",
+				"typeProperties": {
+					"recurrence": {
+						"frequency": "Hour",
+						"interval": 1,
+						"startTime": "2026-05-05T17:34:00",
+						"timeZone": "India Standard Time"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/pipelines/scheduled_mv_stg_to_raw')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/AutoResolveIntegrationRuntime')]",
+			"type": "Microsoft.Synapse/workspaces/integrationRuntimes",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "Managed",
+				"typeProperties": {
+					"computeProperties": {
+						"location": "AutoResolve",
+						"dataFlowProperties": {
+							"computeType": "General",
+							"coreCount": 8,
+							"timeToLive": 0
+						}
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/WorkspaceSystemIdentity')]",
+			"type": "Microsoft.Synapse/workspaces/credentials",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "ManagedIdentity",
+				"typeProperties": {}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/CETASandVIEWSforserverlesssqlpool')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "--CETAS ( not defining columns and all as we directly storing another query results)\nCREATE EXTERNAL TABLE cetas_table\nwith (\n    LOCATION = 'cetas_external_table',\n    DATA_SOURCE = external_source,\n    FILE_FORMAT = formatcsv\n)\nas \nSELECT *\nFROM OPENROWSET(\n        BULK '/samples_External_files/dim_product.csv',\n\t\tDATA_SOURCE = 'external_source',\n        FORMAT='CSV',\n        PARSER_VERSION='2.0',\n        HEADER_ROW = TRUE\n) AS data;\n\n--- VIEWS \ncreate VIEW view_query\nas \nSELECT * from \nOPENROWSET (\n        BULK 'samples_External_files/dim_date.csv',\n\t\tDATA_SOURCE = 'external_source',\n        FORMAT='CSV',\n        PARSER_VERSION='2.0',\n        HEADER_ROW = TRUE\n) as query1\n\n\n\n\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "tayyab_db",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/EXTERNAL_tABLES')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "CREATE EXTERNAL FILE FORMAT formatcsv\nWITH (\n    FORMAT_TYPE = DELIMITEDTEXT,\n    FORMAT_OPTIONS (\n        FIELD_TERMINATOR = ',',\n        FIRST_ROW = 2,\n        USE_TYPE_DEFAULT = TRUE\n    )\n);\n\n\ncreate external table product\n(\n    product_sk varchar(4000),\n    product_code varchar(4000),\n    product_name varchar(4000),\n    department varchar(4000),\n    category varchar(4000),\n    supplier_sk varchar(4000),\n    list_price varchar(4000),\n    uom varchar(4000)\n)\nWITH (\n    LOCATION = 'samples_External_files/dim_product.csv',\n    DATA_SOURCE = external_source,\n    FILE_FORMAT = formatcsv\n   \n);\n\n\nselect * from sys.external_data_sources where name = 'external_source'\n\nselect * from  dbo.product \n\nSELECT * FROM sys.exteral_s",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "tayyab_db",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/OPENROWSET')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "CREATE EXTERNAL TABLE ext_table3\n(\n\tfirst_name VARCHAR(4000),\n\tlast_name VARCHAR(4000),\n\tgender VARCHAR(4000),\n\temail VARCHAR(4000),\n\tphone VARCHAR(4000),\n\tloyalty_tier VARCHAR(4000) ,\n\tsignup_date VARCHAR(4000)\n)\nwith (\n\tLOCATION = 'CSV_FILE',\n\tDATA_SOURCE = external_source,\n\tFILE_FORMAT = csvheader\n)\n\nSELECT * FROM ext_table\nselect * from sys.external_data_sources where name  = 'external_source'\n\n\nSELECT * FROM sys.external_file_formats where name = 'csv_format'\n\nselect * from ext_table2\n\nCREATE EXTERNAL FILE FORMAT csvheader\nWITH (\n    FORMAT_TYPE = DELIMITEDTEXT,\n    FORMAT_OPTIONS (FIELD_TERMINATOR = ',',FIRST_ROW = 2)\n);\n\nSELECT *\nFROM OPENROWSET(\n        BULK '/samples_External_files/dim_product.csv',\n\t\tDATA_SOURCE = 'external_source',\n        FORMAT='CSV',\n        PARSER_VERSION='2.0',\n        HEADER_ROW = TRUE\n) AS data;\n\nselect * from ext_table1\n\n\n-- EXTERNAL DATA SOURCE AND SCOPED CREDENTIAL EXAMPLE \n\nCREATE EXTERNAL DATA SOURCE MySource\nWITH (\n    LOCATION = 'https://myaccount.dfs.core.windows.net/mycontainer',\n    CREDENTIAL = MyCredential\n);\n\n\nCREATE DATABASE SCOPED CREDENTIAL MyManagedIdentityCred\nWITH IDENTITY = 'Managed Identity'; -- SYNAPSE WILL AUTOMATICALLY ACCESS NO NEED FO RSAS OR ACCESS KEY JUST ALLOW STORAGE BLOB DATA CONTIRBNUTOR TO SYNAPSE WORKSPACE ON THAT SOTRAGE ACCOUNT \n\n\n-- MASTER KEYFOR SYNAPSE EK DATABASE ME SIRF EK MASTER KEY YEH BASICALLY CREDENTIALS KO EMNCRYPT KRKE STORE KRTIU NA KI PLAIN TEXT (SCOPED CREDENTIAL DATA SOURCE ETC )\nCREATE MASTER KEY ENCRYPTION BY PASSWORD = 'YourStrongPassword123!'; \n\n-- EXTERNAL FILE FORMAT EXAMPLE AGAR EXTERNAL FILE KE UPAR TABLE BNANA CHAHRE TO ISE BNANA PDEGA KYUKI YEH FILE KE UPAR SCHEMA BNAATA JISSE AS A TABLE READ KR PATA \n\nCREATE EXTERNAL FILE FORMAT csvheader\nWITH (\n    FORMAT_TYPE = DELIMITEDTEXT,\n    FORMAT_OPTIONS (FIELD_TERMINATOR = ',',FIRST_ROW = 2)\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "tayyab_db",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/PRACTICE')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "master",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/SQL script 1')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "-- This is auto-generated code\nSELECT TOP 100\n    jsonContent\n/* --> place the keys that you see in JSON documents in the WITH clause:\n       , JSON_VALUE (jsonContent, '$.key1') AS header1\n       , JSON_VALUE (jsonContent, '$.key2') AS header2\n*/\nFROM\n    OPENROWSET(\n        BULK 'https://tayyabexternal.dfs.core.windows.net/externalsamplefiles/JSON_FILES/LoanByTimeSTamp_2013_20260218085401.json',\n        FORMAT = 'CSV',\n        FIELDQUOTE = '0x0b',\n        FIELDTERMINATOR ='0x0b',\n        ROWTERMINATOR = '0x0b'\n    )\n    WITH (\n        jsonContent varchar(MAX)\n    ) AS [result]\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "master",
+						"poolName": "Built-in"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/SQL script 2')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "CREATE PROCEDURE sp_load_products\nAS\nBEGIN\n\n    DECLARE @audit_id       NVARCHAR(64)\n    DECLARE @records_read   INT = 0\n    DECLARE @inserted       INT = 0\n    DECLARE @updated        INT = 0\n    DECLARE @rows_affected  INT = 0\n    DECLARE @error_msg      NVARCHAR(500) = NULL\n    DECLARE @run_date       DATETIME = GETDATE()\n    DECLARE @before_count   INT = 0\n    DECLARE @after_count    INT = 0\n\n    BEGIN TRY\n\n        -- =============================================\n        -- STEP 1: stg → master_products\n        -- =============================================\n        SET @records_read = (SELECT COUNT(*) FROM stg_products)\n        SET @before_count = (SELECT COUNT(*) FROM master_products)\n\n        MERGE master_products AS tgt\n        USING stg_products AS src\n        ON tgt.product_id = src.product_id\n\n        WHEN MATCHED THEN UPDATE SET\n            tgt.title                   = src.title,\n            tgt.description             = src.description,\n            tgt.category                = src.category,\n            tgt.brand                   = src.brand,\n            tgt.sku                     = src.sku,\n            tgt.price                   = src.price,\n            tgt.discount_percentage     = src.discount_percentage,\n            tgt.rating                  = src.rating,\n            tgt.stock                   = src.stock,\n            tgt.availability_status     = src.availability_status,\n            tgt.minimum_order_quantity  = src.minimum_order_quantity,\n            tgt.weight                  = src.weight,\n            tgt.depth                   = src.depth,\n            tgt.height                  = src.height,\n            tgt.width                   = src.width,\n            tgt.warranty_information    = src.warranty_information,\n            tgt.shipping_information    = src.shipping_information,\n            tgt.return_policy           = src.return_policy,\n            tgt.barcode                 = src.barcode,\n            tgt.thumbnail               = src.thumbnail,\n            tgt.updated_at              = src.updated_at,\n            tgt.load_date               = src.load_date,\n            tgt.hash_key                = src.hash_key,\n            tgt.dw_modified_date        = @run_date\n\n        WHEN NOT MATCHED THEN INSERT (\n            product_id, title, description, category, brand, sku,\n            price, discount_percentage, rating, stock, availability_status,\n            minimum_order_quantity, weight, depth, height, width,\n            warranty_information, shipping_information, return_policy,\n            barcode, thumbnail, created_at, updated_at,\n            load_date, source_system, hash_key,\n            dw_created_date, dw_modified_date\n        )\n        VALUES (\n            src.product_id, src.title, src.description, src.category, src.brand, src.sku,\n            src.price, src.discount_percentage, src.rating, src.stock, src.availability_status,\n            src.minimum_order_quantity, src.weight, src.depth, src.height, src.width,\n            src.warranty_information, src.shipping_information, src.return_policy,\n            src.barcode, src.thumbnail, src.created_at, src.updated_at,\n            src.load_date, src.source_system, src.hash_key,\n            @run_date, @run_date\n        );\n\n        SET @after_count   = (SELECT COUNT(*) FROM master_products)\n        SET @inserted      = @after_count - @before_count\n        SET @updated       = @records_read - @inserted\n        SET @rows_affected = @records_read\n\n        SET @audit_id = CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',\n                        CONCAT('master_products', CONVERT(NVARCHAR(50), @run_date))), 2)\n\n        INSERT INTO audit_log (\n            audit_id, table_name, records_read,\n            records_inserted, records_updated,\n            rows_affected, error_message, load_timestamp\n        )\n        VALUES (\n            @audit_id, 'master_products', @records_read,\n            @inserted, @updated, @rows_affected, NULL, @run_date\n        )\n\n        -- =============================================\n        -- STEP 2: master → dim_category\n        -- =============================================\n        SET @before_count = (SELECT COUNT(*) FROM dim_category)\n\n        MERGE dim_category AS tgt\n        USING (\n            SELECT DISTINCT\n                ABS(CHECKSUM(category)) AS category_key,\n                category                AS category_name,\n                @run_date               AS created_date\n            FROM master_products\n            WHERE category IS NOT NULL\n        ) AS src\n        ON tgt.category_key = src.category_key\n\n        WHEN NOT MATCHED THEN INSERT (\n            category_key, category_name, created_date\n        )\n        VALUES (\n            src.category_key, src.category_name, src.created_date\n        );\n\n        SET @after_count   = (SELECT COUNT(*) FROM dim_category)\n        SET @inserted      = @after_count - @before_count\n        SET @rows_affected = @inserted\n\n        SET @audit_id = CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',\n                        CONCAT('dim_category', CONVERT(NVARCHAR(50), @run_date))), 2)\n\n        INSERT INTO audit_log (\n            audit_id, table_name, records_read,\n            records_inserted, records_updated,\n            rows_affected, error_message, load_timestamp\n        )\n        VALUES (\n            @audit_id, 'dim_category', @inserted,\n            @inserted, 0, @rows_affected, NULL, @run_date\n        )\n\n        -- =============================================\n        -- STEP 3: master → dim_brand\n        -- =============================================\n        SET @before_count = (SELECT COUNT(*) FROM dim_brand)\n\n        MERGE dim_brand AS tgt\n        USING (\n            SELECT DISTINCT\n                ABS(CHECKSUM(brand)) AS brand_key,\n                brand                AS brand_name,\n                @run_date            AS created_date\n            FROM master_products\n            WHERE brand IS NOT NULL\n        ) AS src\n        ON tgt.brand_key = src.brand_key\n\n        WHEN NOT MATCHED THEN INSERT (\n            brand_key, brand_name, created_date\n        )\n        VALUES (\n            src.brand_key, src.brand_name, src.created_date\n        );\n\n        SET @after_count   = (SELECT COUNT(*) FROM dim_brand)\n        SET @inserted      = @after_count - @before_count\n        SET @rows_affected = @inserted\n\n        SET @audit_id = CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',\n                        CONCAT('dim_brand', CONVERT(NVARCHAR(50), @run_date))), 2)\n\n        INSERT INTO audit_log (\n            audit_id, table_name, records_read,\n            records_inserted, records_updated,\n            rows_affected, error_message, load_timestamp\n        )\n        VALUES (\n            @audit_id, 'dim_brand', @inserted,\n            @inserted, 0, @rows_affected, NULL, @run_date\n        )\n\n        -- =============================================\n        -- STEP 4: master → fact_product_pricing\n        -- =============================================\n        SET @before_count = (SELECT COUNT(*) FROM master_products)\n\n        INSERT INTO fact_product_pricing (\n            fact_id, product_id, category_key, brand_key,\n            price, discount_percentage, discounted_price,\n            stock, rating, load_date, pipeline_run_date\n        )\n        SELECT\n            ABS(CHECKSUM(m.product_id, @run_date)),\n            m.product_id,\n            ABS(CHECKSUM(m.category)),\n            ABS(CHECKSUM(m.brand)),\n            m.price,\n            m.discount_percentage,\n            ROUND(m.price - (m.price * m.discount_percentage / 100), 2),\n            m.stock,\n            m.rating,\n            m.load_date,\n            @run_date\n        FROM master_products m\n\n        SET @after_count   = (SELECT COUNT(*) FROM fact_product_pricing)\n        SET @inserted      = @after_count - @before_count\n        SET @rows_affected = @inserted\n\n        SET @audit_id = CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',\n                        CONCAT('fact_product_pricing', CONVERT(NVARCHAR(50), @run_date))), 2)\n\n        INSERT INTO audit_log (\n            audit_id, table_name, records_read,\n            records_inserted, records_updated,\n            rows_affected, error_message, load_timestamp\n        )\n        VALUES (\n            @audit_id, 'fact_product_pricing', @before_count,\n            @inserted, 0, @rows_affected, NULL, @run_date\n        )\n\n    END TRY\n\n    BEGIN CATCH\n\n        SET @error_msg = ERROR_MESSAGE()\n        SET @audit_id  = CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',\n                         CONCAT('ERROR', CONVERT(NVARCHAR(50), @run_date))), 2)\n\n        INSERT INTO audit_log (\n            audit_id, table_name, records_read,\n            records_inserted, records_updated,\n            rows_affected, error_message, load_timestamp\n        )\n        VALUES (\n            @audit_id, 'sp_load_products', 0,\n            0, 0, 0, @error_msg, @run_date\n        )\n\n    END CATCH\n\nEND",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "Tayyabdedicatedpool",
+						"poolName": "Tayyabdedicatedpool"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/SQL script 3')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "\n-- TABLE 1: stg_products\n\nCREATE TABLE stg_products (\n    product_id              SMALLINT,\n    title                   NVARCHAR(255),\n    description             NVARCHAR(1000),\n    category                NVARCHAR(100),\n    brand                   NVARCHAR(100),\n    sku                     NVARCHAR(50),\n    price                   FLOAT,\n    discount_percentage     FLOAT,\n    rating                  FLOAT,\n    stock                   SMALLINT,\n    availability_status     NVARCHAR(50),\n    minimum_order_quantity  SMALLINT,\n    weight                  SMALLINT,\n    depth                   FLOAT,\n    height                  FLOAT,\n    width                   FLOAT,\n    warranty_information    NVARCHAR(100),\n    shipping_information    NVARCHAR(100),\n    return_policy           NVARCHAR(100),\n    barcode                 NVARCHAR(50),\n    thumbnail               NVARCHAR(500),\n    created_at              NVARCHAR(50),\n    updated_at              NVARCHAR(50),\n    load_date               DATE,\n    source_system           NVARCHAR(50),\n    hash_key                NVARCHAR(64)\n)\nWITH (\n    DISTRIBUTION = ROUND_ROBIN,\n    HEAP\n);\n\n-- TABLE 2: master_products\n\nCREATE TABLE master_products (\n    product_id              SMALLINT        NOT NULL,\n    title                   NVARCHAR(255),\n    description             NVARCHAR(1000),\n    category                NVARCHAR(100),\n    brand                   NVARCHAR(100),\n    sku                     NVARCHAR(50),\n    price                   FLOAT,\n    discount_percentage     FLOAT,\n    rating                  FLOAT,\n    stock                   SMALLINT,\n    availability_status     NVARCHAR(50),\n    minimum_order_quantity  SMALLINT,\n    weight                  SMALLINT,\n    depth                   FLOAT,\n    height                  FLOAT,\n    width                   FLOAT,\n    warranty_information    NVARCHAR(100),\n    shipping_information    NVARCHAR(100),\n    return_policy           NVARCHAR(100),\n    barcode                 NVARCHAR(50),\n    thumbnail               NVARCHAR(500),\n    created_at              NVARCHAR(50),\n    updated_at              NVARCHAR(50),\n    load_date               DATE,\n    source_system           NVARCHAR(50),\n    hash_key                NVARCHAR(64),\n    dw_created_date         DATETIME,\n    dw_modified_date        DATETIME\n)\nWITH (\n    DISTRIBUTION = HASH(product_id),\n    CLUSTERED COLUMNSTORE INDEX\n);\n\n\n-- TABLE 3 dim_category\n\nCREATE TABLE dim_category (\n    category_key        INT             NOT NULL,\n    category_name       NVARCHAR(100)   NOT NULL,\n    created_date        DATETIME\n)\nWITH (\n    DISTRIBUTION = REPLICATE,\n    CLUSTERED COLUMNSTORE INDEX\n);\n\n\n-- TABLE 4: dim_brand\n\nCREATE TABLE dim_brand (\n    brand_key           INT             NOT NULL,\n    brand_name          NVARCHAR(100)   NOT NULL,\n    created_date        DATETIME\n)\nWITH (\n    DISTRIBUTION = REPLICATE,\n    CLUSTERED COLUMNSTORE INDEX\n);\n\n\n-- TABLE 5: fact_product_pricing\n\nCREATE TABLE fact_product_pricing (\n    fact_id             INT             NOT NULL,\n    product_id          SMALLINT        NOT NULL,\n    category_key        INT,\n    brand_key           INT,\n    price               FLOAT,\n    discount_percentage FLOAT,\n    discounted_price    FLOAT,\n    stock               SMALLINT,\n    rating              FLOAT,\n    load_date           DATE,\n    pipeline_run_date   DATETIME\n)\nWITH (\n    DISTRIBUTION = HASH(product_id),\n    CLUSTERED COLUMNSTORE INDEX\n);\n\n-- TABLE 6: audit_log\n\nCREATE TABLE audit_log (\n    audit_id            NVARCHAR(64)    NOT NULL,\n    table_name          NVARCHAR(100)   NOT NULL,\n    records_read        INT,\n    records_inserted    INT,\n    records_updated     INT,\n    rows_affected       INT,\n    error_message       NVARCHAR(500),\n    load_timestamp      DATETIME\n)\nWITH (\n    DISTRIBUTION = ROUND_ROBIN,\n    HEAP\n);\n\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "Tayyabdedicatedpool",
+						"poolName": "Tayyabdedicatedpool"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/SQL script 4')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "select top 10 * from audit_log",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "Tayyabdedicatedpool",
+						"poolName": "Tayyabdedicatedpool"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/SQL script 5')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "CREATE PROCEDURE sp_load_products\nAS\nBEGIN\n\n    DECLARE @audit_id       NVARCHAR(64)\n    DECLARE @records_read   INT = 0\n    DECLARE @inserted       INT = 0\n    DECLARE @updated        INT = 0\n    DECLARE @rows_affected  INT = 0\n    DECLARE @error_msg      NVARCHAR(500) = NULL\n    DECLARE @run_date       DATETIME = GETDATE()\n    DECLARE @before_count   INT = 0\n    DECLARE @after_count    INT = 0\n\n    BEGIN TRY\n\n        SET @records_read = (SELECT COUNT(*) FROM stg_products)\n        SET @before_count = (SELECT COUNT(*) FROM master_products)\n\n        MERGE master_products AS tgt\n        USING stg_products AS src\n        ON tgt.product_id = src.product_id\n\n        WHEN MATCHED THEN UPDATE SET\n            tgt.title                   = src.title,\n            tgt.description             = src.description,\n            tgt.category                = src.category,\n            tgt.brand                   = src.brand,\n            tgt.sku                     = src.sku,\n            tgt.price                   = src.price,\n            tgt.discount_percentage     = src.discount_percentage,\n            tgt.rating                  = src.rating,\n            tgt.stock                   = src.stock,\n            tgt.availability_status     = src.availability_status,\n            tgt.minimum_order_quantity  = src.minimum_order_quantity,\n            tgt.weight                  = src.weight,\n            tgt.depth                   = src.depth,\n            tgt.height                  = src.height,\n            tgt.width                   = src.width,\n            tgt.warranty_information    = src.warranty_information,\n            tgt.shipping_information    = src.shipping_information,\n            tgt.return_policy           = src.return_policy,\n            tgt.barcode                 = src.barcode,\n            tgt.thumbnail               = src.thumbnail,\n            tgt.updated_at              = src.updated_at,\n            tgt.load_date               = src.load_date,\n            tgt.hash_key                = src.hash_key,\n            tgt.dw_modified_date        = @run_date\n\n        WHEN NOT MATCHED THEN INSERT (\n            product_id, title, description, category, brand, sku,\n            price, discount_percentage, rating, stock, availability_status,\n            minimum_order_quantity, weight, depth, height, width,\n            warranty_information, shipping_information, return_policy,\n            barcode, thumbnail, created_at, updated_at,\n            load_date, source_system, hash_key,\n            dw_created_date, dw_modified_date\n        )\n        VALUES (\n            src.product_id, src.title, src.description, src.category, src.brand, src.sku,\n            src.price, src.discount_percentage, src.rating, src.stock, src.availability_status,\n            src.minimum_order_quantity, src.weight, src.depth, src.height, src.width,\n            src.warranty_information, src.shipping_information, src.return_policy,\n            src.barcode, src.thumbnail, src.created_at, src.updated_at,\n            src.load_date, src.source_system, src.hash_key,\n            @run_date, @run_date\n        );\n\n        SET @after_count   = (SELECT COUNT(*) FROM master_products)\n        SET @inserted      = @after_count - @before_count\n        SET @updated       = @records_read - @inserted\n        SET @rows_affected = @records_read\n\n        SET @audit_id = CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',\n                        CONCAT('master_products', CONVERT(NVARCHAR(50), @run_date))), 2)\n\n        INSERT INTO audit_log (\n            audit_id, table_name, records_read,\n            records_inserted, records_updated,\n            rows_affected, error_message, load_timestamp\n        )\n        VALUES (\n            @audit_id, 'master_products', @records_read,\n            @inserted, @updated, @rows_affected, NULL, @run_date\n        )\n\n        SET @before_count = (SELECT COUNT(*) FROM dim_category)\n\n        INSERT INTO dim_category (category_key, category_name, created_date)\n        SELECT DISTINCT\n            ABS(CHECKSUM(category)),\n            category,\n            @run_date\n        FROM master_products\n        WHERE category IS NOT NULL\n        AND ABS(CHECKSUM(category)) NOT IN (SELECT category_key FROM dim_category)\n\n        SET @after_count   = (SELECT COUNT(*) FROM dim_category)\n        SET @inserted      = @after_count - @before_count\n        SET @rows_affected = @inserted\n\n        SET @audit_id = CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',\n                        CONCAT('dim_category', CONVERT(NVARCHAR(50), @run_date))), 2)\n\n        INSERT INTO audit_log (\n            audit_id, table_name, records_read,\n            records_inserted, records_updated,\n            rows_affected, error_message, load_timestamp\n        )\n        VALUES (\n            @audit_id, 'dim_category', @inserted,\n            @inserted, 0, @rows_affected, NULL, @run_date\n        )\n\n        SET @before_count = (SELECT COUNT(*) FROM dim_brand)\n\n        INSERT INTO dim_brand (brand_key, brand_name, created_date)\n        SELECT DISTINCT\n            ABS(CHECKSUM(brand)),\n            brand,\n            @run_date\n        FROM master_products\n        WHERE brand IS NOT NULL\n        AND ABS(CHECKSUM(brand)) NOT IN (SELECT brand_key FROM dim_brand)\n\n        SET @after_count   = (SELECT COUNT(*) FROM dim_brand)\n        SET @inserted      = @after_count - @before_count\n        SET @rows_affected = @inserted\n\n        SET @audit_id = CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',\n                        CONCAT('dim_brand', CONVERT(NVARCHAR(50), @run_date))), 2)\n\n        INSERT INTO audit_log (\n            audit_id, table_name, records_read,\n            records_inserted, records_updated,\n            rows_affected, error_message, load_timestamp\n        )\n        VALUES (\n            @audit_id, 'dim_brand', @inserted,\n            @inserted, 0, @rows_affected, NULL, @run_date\n        )\n\n        SET @before_count = (SELECT COUNT(*) FROM fact_product_pricing)\n\n        INSERT INTO fact_product_pricing (\n            fact_id, product_id, category_key, brand_key,\n            price, discount_percentage, discounted_price,\n            stock, rating, load_date, pipeline_run_date\n        )\n        SELECT\n            ABS(CHECKSUM(m.product_id, @run_date)),\n            m.product_id,\n            ABS(CHECKSUM(m.category)),\n            ABS(CHECKSUM(m.brand)),\n            m.price,\n            m.discount_percentage,\n            ROUND(m.price - (m.price * m.discount_percentage / 100), 2),\n            m.stock,\n            m.rating,\n            m.load_date,\n            @run_date\n        FROM master_products m\n\n        SET @after_count   = (SELECT COUNT(*) FROM fact_product_pricing)\n        SET @inserted      = @after_count - @before_count\n        SET @rows_affected = @inserted\n\n        SET @audit_id = CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',\n                        CONCAT('fact_product_pricing', CONVERT(NVARCHAR(50), @run_date))), 2)\n\n        INSERT INTO audit_log (\n            audit_id, table_name, records_read,\n            records_inserted, records_updated,\n            rows_affected, error_message, load_timestamp\n        )\n        VALUES (\n            @audit_id, 'fact_product_pricing', @before_count,\n            @inserted, 0, @rows_affected, NULL, @run_date\n        )\n\n    END TRY\n\n    BEGIN CATCH\n\n        SET @error_msg = ERROR_MESSAGE()\n        SET @audit_id  = CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256',\n                         CONCAT('ERROR', CONVERT(NVARCHAR(50), @run_date))), 2)\n\n        INSERT INTO audit_log (\n            audit_id, table_name, records_read,\n            records_inserted, records_updated,\n            rows_affected, error_message, load_timestamp\n        )\n        VALUES (\n            @audit_id, 'sp_load_products', 0,\n            0, 0, 0, @error_msg, @run_date\n        )\n\n    END CATCH\n\nEND",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "Tayyabdedicatedpool",
+						"poolName": "Tayyabdedicatedpool"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/dedicated_sql_Script')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"content": {
+					"query": "CREATE EXTERNAL DATA SOURCE extsource\nWITH (\n    LOCATION = 'https://tayyabexternal.blob.core.windows.net/externalsamplefiles',\n    CREDENTIAL = extcreds\n);\n\ncreate DATABASE SCOPED CREDENTIAL extcreds\nwith IDENTITY = 'Managed Identity'\n\nCREATE EXTERNAL FILE FORMAT csvext\nWITH (\n    FORMAT_TYPE = DELIMITEDTEXT,\n    FORMAT_OPTIONS (FIELD_TERMINATOR = ',',FIRST_ROW = 2)\n);\n\n-- JO 1. 2 NO DERHAHA HU vo order hai kis order me column chahiye\nCOPY INTO dbo.copy_into\n(\n    customer_sk,\n    customer_code,\n    first_name,\n    last_name,\n    gender,\n    email,\n    phone,\n    loyalty_tier,\n    signup_date\n)\nFROM 'https://tayyabexternal.blob.core.windows.net/externalsamplefiles/CSV_FILE/dim_customer.csv'\nWITH (\n    FILE_TYPE = 'CSV',\n    FIRSTROW = 2,\n    FIELDTERMINATOR = ',',\n    CREDENTIAL = (IDENTITY = 'Managed Identity')\n);\n\nCREATE VIEW viewex\nAS (\nSELECT * FROM copy_into\n)\n\n\n--crerating external table in dedidcatedsqlpool\n\n\nCREATE EXTERNAL table exttable\n(\n    customer_sk varchar(4000),\n    customer_code varchar(4000),\n    first_name varchar(4000),\n    last_name varchar(4000),\n    gender varchar(4000),\n    email varchar(4000),\n    phone varchar(4000),\n    loyalty_tier varchar(4000),\n    signup_date varchar(4000)\n)\nWITH (\n    LOCATION = '/dim_customer.csv',\n    DATA_SOURCE = abfsspath,\n    FILE_FORMAT = csvext\n)\n\ncreate table polybase_table\nwith (\n        DISTRIBUTION = ROUND_ROBIN\n)\nas SELECT * from exttable\n\n\n\n\n-- for abfss path datasource because in dedicatedsqlpool it only accepts the abfss path only \nCREATE EXTERNAL DATA SOURCE abfsspath\nWITH (\n    LOCATION = 'abfss://externalsamplefiles@tayyabexternal.dfs.core.windows.net/CSV_FILE/',\n    CREDENTIAL = extcreds\n);\n",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"databaseName": "Tayyabdedicatedpool",
+						"poolName": "Tayyabdedicatedpool"
+					},
+					"resultLimit": 5000
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/nb_bronze_products')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"bigDataPool": {
+					"referenceName": "sparkpool",
+					"type": "BigDataPoolReference"
+				},
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"runAsWorkspaceSystemIdentity": false,
+					"conf": {
+						"spark.dynamicAllocation.enabled": "false",
+						"spark.dynamicAllocation.minExecutors": "2",
+						"spark.dynamicAllocation.maxExecutors": "2",
+						"spark.autotune.trackingId": "6b05b50d-cf78-41c1-9da4-e4a286ccbf6d"
+					}
+				},
+				"metadata": {
+					"saveOutput": true,
+					"synapse_widget": {
+						"version": "0.1"
+					},
+					"enableDebugMode": false,
+					"language_info": {
+						"name": "python"
+					},
+					"a365ComputeOptions": {
+						"id": "/subscriptions/c48fd04c-8f2d-4a0c-9fca-0e28ce3c60c7/resourceGroups/Please_use_resource_carfully/providers/Microsoft.Synapse/workspaces/tayyabspace/bigDataPools/sparkpool",
+						"name": "sparkpool",
+						"type": "Spark",
+						"endpoint": "https://tayyabspace.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/sparkpool",
+						"auth": {
+							"type": "AAD",
+							"authResource": "https://dev.azuresynapse.net",
+							"authHeader": null
+						},
+						"sparkVersion": "3.5",
+						"nodeCount": 10,
+						"cores": 4,
+						"memory": 28,
+						"extraHeader": null
+					},
+					"sessionKeepAliveTimeout": 30
+				},
+				"cells": [
+					{
+						"cell_type": "code",
+						"source": [
+							"# Cell 1\n",
+							"import requests\n",
+							"import json\n",
+							"import hashlib\n",
+							"import struct\n",
+							"import pyodbc\n",
+							"import pandas as pd\n",
+							"from datetime import date\n",
+							"from pyspark.sql.types import (\n",
+							"    StructType, StructField, StringType,\n",
+							"    DoubleType, ShortType, DateType\n",
+							")\n",
+							"from pyspark.sql.functions import *"
+						],
+						"outputs": [],
+						"execution_count": 4
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# Cell 2\n",
+							"def fetch_all_products():\n",
+							"    url = \"https://dummyjson.com/products\"\n",
+							"    limit = 30\n",
+							"    skip = 0\n",
+							"    all_products = []\n",
+							"\n",
+							"    while True:\n",
+							"        resp = requests.get(f\"{url}?limit={limit}&skip={skip}\")\n",
+							"        resp.raise_for_status()\n",
+							"        data = resp.json()\n",
+							"        products = data.get(\"products\", [])\n",
+							"        if not products:\n",
+							"            break\n",
+							"        all_products.extend(products)\n",
+							"        skip += limit\n",
+							"        if skip >= data.get(\"total\", 0):\n",
+							"            break\n",
+							"\n",
+							"    return all_products\n",
+							"\n",
+							"raw_products = fetch_all_products()"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"today = str(date.today())\n",
+							"bronze_path = f\"abfss://todaystask@tayyabadls.dfs.core.windows.net/bronze/products/{today}/products_raw.json\"\n",
+							"\n",
+							"mssparkutils.fs.put(bronze_path, json.dumps(raw_products, indent=2), overwrite=True)\n",
+							"\n",
+							"raw_json = spark.read.text(bronze_path).collect()\n",
+							"raw_json = \"\".join([row.value for row in raw_json])\n",
+							"raw_products = json.loads(raw_json)"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql import Row\n",
+							"from datetime import date\n",
+							"\n",
+							"def flatten_product(p):\n",
+							"    dim = p.get(\"dimensions\", {})\n",
+							"    meta = p.get(\"meta\", {})\n",
+							"    hash_key = hashlib.sha256(json.dumps({\n",
+							"        \"product_id\": p.get(\"id\"),\n",
+							"        \"price\": p.get(\"price\"),\n",
+							"        \"stock\": p.get(\"stock\"),\n",
+							"        \"discount_percentage\": p.get(\"discountPercentage\")\n",
+							"    }, sort_keys=True).encode()).hexdigest()\n",
+							"\n",
+							"    return Row(\n",
+							"        product_id             = int(p.get(\"id\", 0)),\n",
+							"        title                  = str(p.get(\"title\", \"\") or \"\"),\n",
+							"        description            = str(p.get(\"description\", \"\") or \"\")[:1000],\n",
+							"        category               = str(p.get(\"category\", \"\") or \"\"),\n",
+							"        brand                  = str(p.get(\"brand\", \"\") or \"\"),\n",
+							"        sku                    = str(p.get(\"sku\", \"\") or \"\"),\n",
+							"        price                  = float(p.get(\"price\", 0.0) or 0.0),\n",
+							"        discount_percentage    = float(p.get(\"discountPercentage\", 0.0) or 0.0),\n",
+							"        rating                 = float(p.get(\"rating\", 0.0) or 0.0),\n",
+							"        stock                  = int(p.get(\"stock\", 0) or 0),\n",
+							"        availability_status    = str(p.get(\"availabilityStatus\", \"\") or \"\"),\n",
+							"        minimum_order_quantity = int(p.get(\"minimumOrderQuantity\", 1) or 1),\n",
+							"        weight                 = int(p.get(\"weight\", 0) or 0),\n",
+							"        depth                  = float(dim.get(\"depth\", 0.0) or 0.0),\n",
+							"        height                 = float(dim.get(\"height\", 0.0) or 0.0),\n",
+							"        width                  = float(dim.get(\"width\", 0.0) or 0.0),\n",
+							"        warranty_information   = str(p.get(\"warrantyInformation\", \"\") or \"\"),\n",
+							"        shipping_information   = str(p.get(\"shippingInformation\", \"\") or \"\"),\n",
+							"        return_policy          = str(p.get(\"returnPolicy\", \"\") or \"\"),\n",
+							"        barcode                = str(meta.get(\"barcode\", \"\") or \"\"),\n",
+							"        thumbnail              = str(p.get(\"thumbnail\", \"\") or \"\")[:500],\n",
+							"        created_at             = str(meta.get(\"createdAt\", \"\") or \"\"),\n",
+							"        updated_at             = str(meta.get(\"updatedAt\", \"\") or \"\"),\n",
+							"        load_date              = date.today(),\n",
+							"        source_system          = \"dummyjson\",\n",
+							"        hash_key               = hash_key\n",
+							"    )\n",
+							"\n",
+							"rows = [flatten_product(p) for p in raw_products]"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# Cell 5\n",
+							"schema = StructType([\n",
+							"    StructField(\"product_id\",              ShortType(),  True),\n",
+							"    StructField(\"title\",                   StringType(), True),\n",
+							"    StructField(\"description\",             StringType(), True),\n",
+							"    StructField(\"category\",                StringType(), True),\n",
+							"    StructField(\"brand\",                   StringType(), True),\n",
+							"    StructField(\"sku\",                     StringType(), True),\n",
+							"    StructField(\"price\",                   DoubleType(), True),\n",
+							"    StructField(\"discount_percentage\",     DoubleType(), True),\n",
+							"    StructField(\"rating\",                  DoubleType(), True),\n",
+							"    StructField(\"stock\",                   ShortType(),  True),\n",
+							"    StructField(\"availability_status\",     StringType(), True),\n",
+							"    StructField(\"minimum_order_quantity\",  ShortType(),  True),\n",
+							"    StructField(\"weight\",                  ShortType(),  True),\n",
+							"    StructField(\"depth\",                   DoubleType(), True),\n",
+							"    StructField(\"height\",                  DoubleType(), True),\n",
+							"    StructField(\"width\",                   DoubleType(), True),\n",
+							"    StructField(\"warranty_information\",    StringType(), True),\n",
+							"    StructField(\"shipping_information\",    StringType(), True),\n",
+							"    StructField(\"return_policy\",           StringType(), True),\n",
+							"    StructField(\"barcode\",                 StringType(), True),\n",
+							"    StructField(\"thumbnail\",               StringType(), True),\n",
+							"    StructField(\"created_at\",              StringType(), True),\n",
+							"    StructField(\"updated_at\",              StringType(), True),\n",
+							"    StructField(\"load_date\",               DateType(),   True),\n",
+							"    StructField(\"source_system\",           StringType(), True),\n",
+							"    StructField(\"hash_key\",                StringType(), True),\n",
+							"])\n",
+							"\n",
+							"df = spark.createDataFrame(rows, schema=schema)"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"import struct\n",
+							"import pyodbc\n",
+							"import pandas as pd\n",
+							"\n",
+							"token = mssparkutils.credentials.getToken(\"DW\")\n",
+							"token_bytes = token.encode(\"UTF-8\")\n",
+							"exptoken = b\"\".join([bytes([b, 0]) for b in token_bytes])\n",
+							"tokenstruct = struct.pack(\"=i\", len(exptoken)) + exptoken\n",
+							"\n",
+							"conn = pyodbc.connect(\n",
+							"    \"Driver={ODBC Driver 18 for SQL Server};\"\n",
+							"    \"Server=tayyabspace.sql.azuresynapse.net,1433;\"\n",
+							"    \"Database=Tayyabdedicatedpool;\"\n",
+							"    \"Encrypt=yes;\"\n",
+							"    \"TrustServerCertificate=no;\",\n",
+							"    attrs_before={1256: tokenstruct},\n",
+							"    autocommit=True\n",
+							")\n",
+							"\n",
+							"cursor = conn.cursor()\n",
+							"cursor.execute(\"TRUNCATE TABLE stg_products\")\n",
+							"\n",
+							"pandas_df = df.toPandas()\n",
+							"cols = \", \".join(pandas_df.columns)\n",
+							"placeholders = \", \".join([\"?\" for _ in pandas_df.columns])\n",
+							"insert_sql = f\"INSERT INTO stg_products ({cols}) VALUES ({placeholders})\"\n",
+							"\n",
+							"cursor.fast_executemany = True\n",
+							"cursor.executemany(insert_sql, pandas_df.values.tolist())\n",
+							"\n",
+							"cursor.close()\n",
+							"conn.close()"
+						],
+						"outputs": []
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/raw_silver')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"bigDataPool": {
+					"referenceName": "sparkpool",
+					"type": "BigDataPoolReference"
+				},
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"runAsWorkspaceSystemIdentity": false,
+					"conf": {
+						"spark.dynamicAllocation.enabled": "false",
+						"spark.dynamicAllocation.minExecutors": "2",
+						"spark.dynamicAllocation.maxExecutors": "2",
+						"spark.autotune.trackingId": "5e3b73db-0aa5-4e3a-9b63-ed9144c7dfd0"
+					}
+				},
+				"metadata": {
+					"saveOutput": true,
+					"enableDebugMode": false,
+					"language_info": {
+						"name": "python"
+					},
+					"a365ComputeOptions": {
+						"id": "/subscriptions/c48fd04c-8f2d-4a0c-9fca-0e28ce3c60c7/resourceGroups/Please_use_resource_carfully/providers/Microsoft.Synapse/workspaces/tayyabspace/bigDataPools/sparkpool",
+						"name": "sparkpool",
+						"type": "Spark",
+						"endpoint": "https://tayyabspace.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/sparkpool",
+						"auth": {
+							"type": "AAD",
+							"authResource": "https://dev.azuresynapse.net",
+							"authHeader": null
+						},
+						"sparkVersion": "3.5",
+						"nodeCount": 10,
+						"cores": 4,
+						"memory": 28,
+						"extraHeader": null
+					},
+					"sessionKeepAliveTimeout": 30
+				},
+				"cells": [
+					{
+						"cell_type": "code",
+						"metadata": {
+							"tags": [
+								"parameters"
+							]
+						},
+						"source": [
+							"file_name = \"\""
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import *\n",
+							"\n",
+							"# ── 1. CONFIG\n",
+							"raw_path    = \"abfss://ecommerce@tayyabadls.dfs.core.windows.net/raw/\"\n",
+							"silver_path = \"abfss://ecommerce@tayyabadls.dfs.core.windows.net/silver/\"\n",
+							"\n",
+							"\n",
+							"if not file_name:\n",
+							"    raise ValueError(\"No file_name parameter received!\")\n",
+							"\n",
+							"# ── 3. READ\n",
+							"df_raw = spark.read \\\n",
+							"    .format(\"csv\") \\\n",
+							"    .option(\"header\", \"true\") \\\n",
+							"    .option(\"inferSchema\", \"true\") \\\n",
+							"    .load(raw_path + file_name)\n",
+							"\n",
+							"# ── 4. SELECT columns\n",
+							"df = df_raw.select(\n",
+							"    \"user_id\", \"product_id\", \"category\", \"subcategory\",\"brand\", \"price\", \"discount\", \"final_price\",\n",
+							"    \"rating\", \"review_count\", \"stock\", \"seller_id\", \"seller_rating\",\"purchase_date\", \"shipping_time_days\",\n",
+							"    \"location\", \"device\", \"payment_method\",\"is_returned\", \"delivery_status\" )\n",
+							"    \n",
+							"# ── 5. TRANSFORM\n",
+							"df_clean = df \\\n",
+							"    .withColumn(\"purchase_date\",   to_date(col(\"purchase_date\"))) \\\n",
+							"    .withColumn(\"category\",        trim(col(\"category\"))) \\\n",
+							"    .withColumn(\"delivery_status\", trim(col(\"delivery_status\"))) \\\n",
+							"    .withColumn(\"ingested_at\",     current_timestamp()) \\\n",
+							"    .dropna(subset=[\"user_id\", \"product_id\", \"purchase_date\"])\n",
+							"\n",
+							"# print(f\"Rows after cleaning: {df_clean.count()}\")\n",
+							"\n",
+							"# ── 6. WRITE Delta to Silver\n",
+							"df_clean.write \\\n",
+							"    .format(\"delta\") \\\n",
+							"    .mode(\"overwrite\") \\\n",
+							"    .option(\"mergeSchema\", \"true\") \\\n",
+							"    .save(silver_path)"
+						],
+						"outputs": []
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/scheduled_raw_silver')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"bigDataPool": {
+					"referenceName": "sparkpool",
+					"type": "BigDataPoolReference"
+				},
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"runAsWorkspaceSystemIdentity": false,
+					"conf": {
+						"spark.dynamicAllocation.enabled": "false",
+						"spark.dynamicAllocation.minExecutors": "2",
+						"spark.dynamicAllocation.maxExecutors": "2",
+						"spark.autotune.trackingId": "512f9437-2684-4f45-a419-13a4f76acf38"
+					}
+				},
+				"metadata": {
+					"saveOutput": true,
+					"synapse_widget": {
+						"version": "0.1"
+					},
+					"enableDebugMode": false,
+					"language_info": {
+						"name": "python"
+					},
+					"a365ComputeOptions": {
+						"id": "/subscriptions/c48fd04c-8f2d-4a0c-9fca-0e28ce3c60c7/resourceGroups/Please_use_resource_carfully/providers/Microsoft.Synapse/workspaces/tayyabspace/bigDataPools/sparkpool",
+						"name": "sparkpool",
+						"type": "Spark",
+						"endpoint": "https://tayyabspace.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/sparkpool",
+						"auth": {
+							"type": "AAD",
+							"authResource": "https://dev.azuresynapse.net",
+							"authHeader": null
+						},
+						"sparkVersion": "3.5",
+						"nodeCount": 10,
+						"cores": 4,
+						"memory": 28,
+						"extraHeader": null
+					},
+					"sessionKeepAliveTimeout": 30
+				},
+				"cells": [
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql.functions import *\n",
+							"from delta.tables import DeltaTable\n",
+							"from notebookutils import mssparkutils\n",
+							"import json\n",
+							"\n",
+							"staging_path = \"abfss://ecommerce@tayyabadls.dfs.core.windows.net/staging/\"\n",
+							"bronze_path   = \"abfss://ecommerce@tayyabadls.dfs.core.windows.net/bronze/\"\n",
+							"silver_path   = \"abfss://ecommerce@tayyabadls.dfs.core.windows.net/scheduled_silver/\"\n",
+							"metadata_path = \"abfss://ecommerce@tayyabadls.dfs.core.windows.net/metadata_scheduled/processed_files.json\"\n",
+							"\n",
+							"# ── 1 Pehle se process hui files ki list lo\n",
+							"try:\n",
+							"    content = mssparkutils.fs.head(metadata_path) #vyeh json k andar ka text dega in string\n",
+							"    processed_files = json.loads(content) # make it as python object (list)\n",
+							"except:\n",
+							"    processed_files = []\n",
+							"\n",
+							"print(f\" processed files: {processed_files}\")\n",
+							"\n",
+							"#  2 Staging all csv files\n",
+							"all_files = mssparkutils.fs.ls(staging_path)\n",
+							"\n",
+							"# Sirf woh files lo jo pehle process nahi hui\n",
+							"new_files = [f for f in all_files if f.name.endswith(\".csv\") and f.name not in processed_files]\n",
+							"\n",
+							"print(f\"New files: {[f.name for f in new_files]}\")\n",
+							"\n",
+							"if not new_files:\n",
+							"    print(\"no new files.\")\n",
+							"\n",
+							"else:\n",
+							"    #  4 Nai files Bronze mein copy karo as-is backup\n",
+							"    for f in new_files:\n",
+							"        mssparkutils.fs.cp(f.path, bronze_path + f.name)\n",
+							"    print(f\"Bronze mein copy ho gayi: {[f.name for f in new_files]}\")\n",
+							"\n",
+							"    #  5 Sirf nai files read karo\n",
+							"    df_raw = spark.read \\\n",
+							"        .format(\"csv\") \\\n",
+							"        .option(\"header\", \"true\") \\\n",
+							"        .option(\"inferSchema\", \"true\") \\\n",
+							"        .load([f.path for f in new_files])\n",
+							"\n",
+							"    #  6. Columns select karo\n",
+							"    df = df_raw.select(\n",
+							"        \"user_id\", \"product_id\", \"category\", \"subcategory\",\"brand\", \"price\", \"discount\",\n",
+							"         \"final_price\", \"rating\", \"review_count\", \"stock\",\"seller_id\", \"seller_rating\",\n",
+							"        \"purchase_date\", \"shipping_time_days\", \"location\", \"device\", \"payment_method\", \"is_returned\", \"delivery_status\"\n",
+							"    )\n",
+							"\n",
+							"    #  7. Transform\n",
+							"    df_clean = df \\\n",
+							"        .withColumn(\"purchase_date\",   to_date(col(\"purchase_date\"))) \\\n",
+							"        .withColumn(\"category\",        trim(col(\"category\"))) \\\n",
+							"        .withColumn(\"delivery_status\", trim(col(\"delivery_status\"))) \\\n",
+							"        .withColumn(\"ingested_at\",     current_timestamp()) \\\n",
+							"        .dropna(subset=[\"user_id\", \"product_id\", \"purchase_date\"])\n",
+							"\n",
+							"    #  8. Silver writing the table\n",
+							"    # 1st  overwrite new table create\n",
+							"    # 2nd  MERGE no duplicates\n",
+							"    if DeltaTable.isDeltaTable(spark, silver_path):\n",
+							"        DeltaTable.forPath(spark, silver_path).alias(\"existing\") \\\n",
+							"            .merge(\n",
+							"                df_clean.alias(\"new\"),\n",
+							"                \"\"\"existing.user_id = new.user_id\n",
+							"                   AND existing.product_id = new.product_id\n",
+							"                   AND existing.purchase_date = new.purchase_date\"\"\"\n",
+							"            ) \\\n",
+							"            .whenNotMatched().insertAll() \\\n",
+							"            .execute()\n",
+							"    else:\n",
+							"        df_clean.write \\\n",
+							"            .format(\"delta\") \\\n",
+							"            .mode(\"overwrite\") \\\n",
+							"            .save(silver_path)\n",
+							"\n",
+							"    # 9 Metadata update \n",
+							"    updated_list = processed_files + [f.name for f in new_files]\n",
+							"    mssparkutils.fs.put(metadata_path, json.dumps(updated_list), overwrite=True)"
+						],
+						"outputs": []
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/studentcare')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"bigDataPool": {
+					"referenceName": "sparkpool",
+					"type": "BigDataPoolReference"
+				},
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"runAsWorkspaceSystemIdentity": false,
+					"conf": {
+						"spark.dynamicAllocation.enabled": "false",
+						"spark.dynamicAllocation.minExecutors": "2",
+						"spark.dynamicAllocation.maxExecutors": "2",
+						"spark.autotune.trackingId": "d2916335-5d2e-4058-b148-9e31c918c8fe"
+					}
+				},
+				"metadata": {
+					"saveOutput": true,
+					"synapse_widget": {
+						"version": "0.1"
+					},
+					"enableDebugMode": false,
+					"language_info": {
+						"name": "python"
+					},
+					"a365ComputeOptions": {
+						"id": "/subscriptions/c48fd04c-8f2d-4a0c-9fca-0e28ce3c60c7/resourceGroups/Please_use_resource_carfully/providers/Microsoft.Synapse/workspaces/tayyabspace/bigDataPools/sparkpool",
+						"name": "sparkpool",
+						"type": "Spark",
+						"endpoint": "https://tayyabspace.dev.azuresynapse.net/livyApi/versions/2019-11-01-preview/sparkPools/sparkpool",
+						"auth": {
+							"type": "AAD",
+							"authResource": "https://dev.azuresynapse.net",
+							"authHeader": null
+						},
+						"sparkVersion": "3.5",
+						"nodeCount": 10,
+						"cores": 4,
+						"memory": 28,
+						"extraHeader": null
+					},
+					"sessionKeepAliveTimeout": 30
+				},
+				"cells": [
+					{
+						"cell_type": "code",
+						"source": [
+							"from datetime import datetime\n",
+							"import pyodbc\n",
+							"\n",
+							"# run_id banao\n",
+							"run_id = f\"RUN_{datetime.now().strftime('%Y%m%d_%H%M%S')}\"\n",
+							"print(f\"Run ID: {run_id}\")\n",
+							"\n",
+							"# Connection details\n",
+							"server = \"tayyabserver.database.windows.net\"\n",
+							"database = \"StudentMentalHealthDB\"\n",
+							"username = \"tayyab\"\n",
+							"password = \"MUMMA9764@#\"\n",
+							"\n",
+							"# JDBC URL for Spark (baad mein kaam aayega)\n",
+							"jdbc_url = f\"jdbc:sqlserver://{server}:1433;database={database};encrypt=true;trustServerCertificate=false;\"\n",
+							"connection_properties = {\n",
+							"    \"user\": username,\n",
+							"    \"password\": password,\n",
+							"    \"driver\": \"com.microsoft.sqlserver.jdbc.SQLServerDriver\"\n",
+							"}\n",
+							"\n",
+							"# pyodbc se connect karo INSERT ke liye\n",
+							"conn = pyodbc.connect(\n",
+							"    f\"DRIVER={{ODBC Driver 18 for SQL Server}};\"\n",
+							"    f\"SERVER={server};\"\n",
+							"    f\"DATABASE={database};\"\n",
+							"    f\"UID={username};\"\n",
+							"    f\"PWD={password};\"\n",
+							"    f\"Encrypt=yes;TrustServerCertificate=no;\"\n",
+							")\n",
+							"cursor = conn.cursor()\n",
+							"\n",
+							"# Audit START insert\n",
+							"cursor.execute(\"\"\"\n",
+							"    INSERT INTO dbo.audit_pipeline_log \n",
+							"        (pipeline_name, run_id, start_time, status)\n",
+							"    VALUES \n",
+							"        ('student_mental_health_notebook', ?, GETDATE(), 'RUNNING')\n",
+							"\"\"\", run_id)\n",
+							"\n",
+							"conn.commit()\n",
+							"print(f\"✅ Audit START inserted — Run ID: {run_id}\")"
+						],
+						"outputs": [],
+						"execution_count": 5
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# Bronze se CSV padho\n",
+							"bronze_path = \"abfss://studentcare@tayyabadls.dfs.core.windows.net/bronze/student_lifestyle_100k.csv\"\n",
+							"\n",
+							"df_raw = spark.read.csv(\n",
+							"    bronze_path,\n",
+							"    header=True,\n",
+							"    inferSchema=True\n",
+							")\n",
+							"\n",
+							"print(f\"✅ CSV loaded — Total Rows: {df_raw.count()}\")\n",
+							"print(f\"Columns: {df_raw.columns}\")\n",
+							"df_raw.show(5)"
+						],
+						"outputs": [],
+						"execution_count": 13
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"from pyspark.sql import functions as F\n",
+							"from pyspark.sql.types import FloatType\n",
+							"\n",
+							"# Step 1 — Nulls drop karo\n",
+							"df_clean = df_raw.dropna()\n",
+							"\n",
+							"# Step 2 — Column names standardize karo (lowercase + underscore)\n",
+							"df_clean = df_clean.toDF(*[c.lower().replace(\" \", \"_\") for c in df_clean.columns])\n",
+							"\n",
+							"# Step 3 — Depression column — True/False → 1/0\n",
+							"df_clean = df_clean.withColumn(\n",
+							"    \"depression\",\n",
+							"    F.when(F.col(\"depression\") == True, 1).otherwise(0).cast(\"int\")\n",
+							")\n",
+							"\n",
+							"# Step 4 — Risk Score calculate karo\n",
+							"# Logic:\n",
+							"# stress_level     → 0-10 scale already hai\n",
+							"# cgpa             → low cgpa = high risk (10 - cgpa) normalize\n",
+							"# sleep_duration   → kam sleep = high risk\n",
+							"# social_media     → zyada social media = high risk\n",
+							"\n",
+							"df_clean = df_clean.withColumn(\n",
+							"    \"risk_score\",\n",
+							"    F.round(\n",
+							"        (F.col(\"stress_level\") * 0.4) +\n",
+							"        ((10 - F.col(\"cgpa\")) * 0.3) +\n",
+							"        ((8 - F.col(\"sleep_duration\")) * 0.2) +\n",
+							"        (F.col(\"social_media_hours\") * 0.1),\n",
+							"        2\n",
+							"    )\n",
+							")\n",
+							"\n",
+							"# Step 5 — Risk Category\n",
+							"df_clean = df_clean.withColumn(\n",
+							"    \"risk_category\",\n",
+							"    F.when(F.col(\"risk_score\") >= 7, \"HIGH\")\n",
+							"     .when(F.col(\"risk_score\") >= 4, \"MEDIUM\")\n",
+							"     .otherwise(\"LOW\")\n",
+							")\n",
+							"\n",
+							"print(f\"✅ Clean rows: {df_clean.count()}\")\n",
+							"print(f\"Risk Distribution:\")\n",
+							"df_clean.groupBy(\"risk_category\").count().show()\n",
+							"df_clean.show(5)"
+						],
+						"outputs": [],
+						"execution_count": 14
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# Silver path\n",
+							"silver_path = \"abfss://studentcare@tayyabadls.dfs.core.windows.net/silver/clean/\"\n",
+							"\n",
+							"# Parquet write karo\n",
+							"df_clean.write \\\n",
+							"    .mode(\"overwrite\") \\\n",
+							"    .parquet(silver_path)\n",
+							"\n",
+							"print(f\"✅ Silver Parquet written — Path: {silver_path}\")\n",
+							"\n",
+							"# Verify karo\n",
+							"mssparkutils.fs.ls(silver_path)"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"# Step 1 — Staging table pehle clear karo\n",
+							"cursor.execute(\"TRUNCATE TABLE dbo.stg_mental_health\")\n",
+							"conn.commit()\n",
+							"print(\"✅ Staging cleared\")\n",
+							"\n",
+							"# Step 2 — Silver se parquet padho (confirm ke liye)\n",
+							"df_silver = spark.read.parquet(silver_path)\n",
+							"\n",
+							"# Step 3 — Staging mein load karo JDBC se\n",
+							"df_silver.select(\n",
+							"    \"student_id\",\n",
+							"    \"age\",\n",
+							"    \"gender\",\n",
+							"    \"department\",\n",
+							"    \"cgpa\",\n",
+							"    \"sleep_duration\",\n",
+							"    \"study_hours\",\n",
+							"    \"social_media_hours\",\n",
+							"    \"physical_activity\",\n",
+							"    \"stress_level\",\n",
+							"    \"depression\",\n",
+							"    \"risk_category\",\n",
+							"    \"risk_score\"\n",
+							").write \\\n",
+							" .format(\"jdbc\") \\\n",
+							" .option(\"url\", jdbc_url) \\\n",
+							" .option(\"dbtable\", \"dbo.stg_mental_health\") \\\n",
+							" .option(\"user\", username) \\\n",
+							" .option(\"password\", password) \\\n",
+							" .option(\"driver\", \"com.microsoft.sqlserver.jdbc.SQLServerDriver\") \\\n",
+							" .mode(\"append\") \\\n",
+							" .save()\n",
+							"\n",
+							"print(f\"✅ Staging loaded\")\n",
+							"\n",
+							"# Step 4 — SP call karo\n",
+							"cursor.execute(\"EXEC dbo.usp_load_mental_health ?\", run_id)\n",
+							"conn.commit()\n",
+							"print(f\"✅ SP executed — run_id: {run_id}\")"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"import datetime\n",
+							"\n",
+							"# Step 1 — Bronze file Archive mein copy karo\n",
+							"source_path = \"abfss://studentcare@tayyabadls.dfs.core.windows.net/bronze/student_lifestyle_100k.csv\"\n",
+							"archive_path = f\"abfss://studentcare@tayyabadls.dfs.core.windows.net/archive/student_lifestyle_100k_{run_id}.csv\"\n",
+							"\n",
+							"mssparkutils.fs.mv(source_path, archive_path)\n",
+							"print(f\"✅ File archived — {archive_path}\")\n",
+							"\n",
+							"# Step 2 — Audit END update karo\n",
+							"cursor.execute(\"\"\"\n",
+							"    UPDATE dbo.audit_pipeline_log\n",
+							"    SET end_time = GETDATE(),\n",
+							"        status = 'SUCCESS',\n",
+							"        rows_processed = ?\n",
+							"    WHERE run_id = ?\n",
+							"\"\"\", df_silver.count(), run_id)\n",
+							"\n",
+							"conn.commit()\n",
+							"print(f\"✅ Audit END updated — Status: SUCCESS\")\n",
+							"\n",
+							"# Step 3 — Connection close karo\n",
+							"cursor.close()\n",
+							"conn.close()\n",
+							"print(\"✅ Connection closed\")\n",
+							"\n",
+							"print(f\"\\n🎉 Pipeline Complete — Run ID: {run_id}\")"
+						],
+						"outputs": []
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/sparkpool')]",
+			"type": "Microsoft.Synapse/workspaces/bigDataPools",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"autoPause": {
+					"enabled": true,
+					"delayInMinutes": 15
+				},
+				"autoScale": {
+					"enabled": true,
+					"maxNodeCount": 10,
+					"minNodeCount": 3
+				},
+				"nodeCount": 10,
+				"nodeSize": "Small",
+				"nodeSizeFamily": "MemoryOptimized",
+				"sparkVersion": "3.5",
+				"isComputeIsolationEnabled": false,
+				"sessionLevelPackagesEnabled": false,
+				"annotations": []
+			},
+			"dependsOn": [],
+			"location": "australiaeast"
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/Tayyabdedicatedpool')]",
+			"type": "Microsoft.Synapse/workspaces/sqlPools",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"collation": "SQL_Latin1_General_CP1_CI_AS",
+				"maxSizeBytes": 263882790666240,
+				"annotations": []
+			},
+			"dependsOn": [],
+			"location": "australiaeast"
+		}
+	]
+}
